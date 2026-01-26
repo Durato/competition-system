@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Technovação</title>
+  <link rel="stylesheet" href="styles.css"/>
+</head>
+<body>
+
+<!-- LANDING -->
+<div id="landing">
+  <div class="landing-hero">
+    <img src="logo.png" alt="Technovação Logo" class="landing-logo" />
+    <div class="actions">
+      <button onclick="openModal('login')">Entrar</button>
+      <button onclick="openModal('register')" class="btn-outline">Criar Conta</button>
+    </div>
+  </div>
+
+  <img class="landing-banner" src="banner.jpg" alt="Banner do Evento" />
+
+  <div class="landing-content">
+    <h2>Sobre o Evento</h2>
+    <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.</p>
+    <p>Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.</p>
+  </div>
+
+  <div class="landing-wide">
+    <h2 style="text-align: center; margin-bottom: 30px;">Acompanhe as Inscrições</h2>
+    <p style="text-align: center; color: #aaa; margin-bottom: 20px;">
+      Limite global: 400 inscritos pagos<br>
+      <strong style="color: var(--primary); font-size: 1.2rem;"><span id="paidCountDisplay">0</span> já garantiram sua vaga!</strong>
+    </p>
+    <div id="publicRobotsDisplay" class="robots-grid"></div>
+  </div>
+
+  <div class="landing-wide">
+    <h2 style="text-align: center; margin-bottom: 30px;">Equipes Inscritas</h2>
+    <div class="carousel-wrapper">
+      <div id="publicTeamsList" class="carousel-track"></div>
+    </div>
+  </div>
+
+  <div class="landing-sponsors">
+    <div class="sponsors-list">
+      <img src="prefeitura.png" alt="Patrocinador 1" />
+      <img src="fundetec.png" alt="Patrocinador 2" />
+      <img src="hubone.png" alt="Patrocinador 3" />
+    </div>
+  </div>
+</div>
+
+<!-- LOGIN MODAL -->
+<div class="modal" id="loginModal">
+  <div class="modal-box">
+    <h2>Login</h2>
+    <div id="loginMessage"></div>
+    <form onsubmit="handleLogin(event)">
+      <input type="email" id="loginEmail" placeholder="Email" required />
+      <input type="password" id="loginPassword" placeholder="Senha" required />
+      <button style="width: 100%">Entrar</button>
+    </form>
+    <button onclick="closeModal('login')" style="margin-top: 15px; width: 100%; background: transparent; border: 1px solid var(--border); color: var(--text);">Fechar</button>
+  </div>
+</div>
+
+<!-- REGISTER MODAL -->
+<div class="modal" id="registerModal">
+  <div class="modal-box">
+    <h2>Criar Conta</h2>
+    <div id="registerMessage"></div>
+    <form onsubmit="handleRegister(event)">
+      <input type="text" id="registerName" placeholder="Nome completo" required />
+      <input type="email" id="registerEmail" placeholder="Seu email" required />
+      <input type="password" id="registerPassword" placeholder="Sua senha" required />
+      <input type="date" id="registerBirthdate" required style="color-scheme: dark;" />
+      <input type="tel" id="registerPhone" placeholder="Telefone / WhatsApp" required />
+      <input type="file" id="registerPhoto" accept="image/*" style="background: var(--surface); color: var(--text);" required />
+      <button type="submit">Cadastrar</button>
+    </form>
+    <button onclick="closeModal('register')" style="background: transparent; color: #666; margin-top: 10px; width: 100%; border: none;">
+      Cancelar
+    </button>
+  </div>
+</div>
+
+<!-- DASHBOARD -->
+<div id="dashboard" style="display:none">
+
+  <header>
+    <h2 id="userName">Usuário</h2>
+    <button onclick="logout()">Sair</button>
+  </header>
+
+  <!-- EQUIPES -->
+  <section>
+    <h3>Minhas Equipes</h3>
+    <div id="teamSection"></div>
+  </section>
+
+  <!-- MEMBROS -->
+  <section id="membersSection" style="display:none">
+    <h3>Membros</h3>
+    <ul id="membersList"></ul>
+    <div id="addMemberArea">
+      <h4 style="margin-top: 1rem; margin-bottom: 0.5rem; color: var(--primary);">Adicionar Membro</h4>
+      <div id="memberMessage" style="margin-bottom: 0.5rem; font-size: 0.9rem; color: #f87171;"></div>
+      <form onsubmit="handleAddMember(event)">
+        <input id="memberEmail" type="email" placeholder="Email do membro" required />
+        <button>Adicionar</button>
+      </form>
+    </div>
+  </section>
+
+  <!-- ROBÔS -->
+  <section id="teamRobotsSection" style="display:none">
+    <h3>Robôs</h3>
+    <ul id="teamRobotsList"></ul>
+  </section>
+
+  <!-- CADASTRAR ROBÔ -->
+  <section id="robotSection" style="display:none">
+    <h3>Cadastrar Robô</h3>
+    <div id="robotMessage"></div>
+    <form onsubmit="handleCreateRobot(event)">
+      <input id="robotName" placeholder="Nome do robô" required />
+      <input type="file" id="robotPhoto" accept="image/*" style="background: var(--surface); color: var(--text);" required />
+      <select id="robotCategory" required>
+        <option value="">Selecione categoria</option>
+      </select>
+      <button>Cadastrar</button>
+    </form>
+  </section>
+
+  <!-- PAGAMENTOS -->
+  <section id="paymentSection" style="display:none; border-color: #22c55e;">
+    <h3 style="color: #22c55e;">Pagamentos Pendentes</h3>
+    <p style="font-size: 0.9rem; color: #aaa; margin-bottom: 20px;">Selecione os itens para pagar (Apenas Líder) — <span style="color: #f87171;">Limite de 400 inscritos pagos no evento.</span></p>
+    
+    <div id="paymentList">
+      <!-- Checkboxes serão gerados aqui -->
+    </div>
+
+    <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+      <h3 id="totalPrice" style="margin:0;">Total: R$ 0,00</h3>
+      <button onclick="handleCheckout()" style="background-color: #22c55e;">Pagar Agora</button>
+    </div>
+  </section>
+
+  <!-- CRIAR EQUIPE -->
+  <section>
+    <h3>Criar Nova Equipe</h3>
+    <div id="createTeamMessage" style="margin-bottom: 10px; font-size: 0.9rem;"></div>
+    <form onsubmit="handleCreateTeam(event)">
+      <input id="teamName" placeholder="Nome da equipe" required />
+      <input id="teamInstitution" placeholder="Instituição de Ensino / Empresa" />
+      <input type="file" id="teamPhoto" accept="image/*" style="background: var(--surface); color: var(--text);" required />
+      <button>Criar Equipe</button>
+    </form>
+  </section>
+
+  <div class="card">
+    <h3>Robôs por Categoria</h3>
+    <div id="robotsByCategory" class="robots-grid"></div>
+  </div>
+
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
