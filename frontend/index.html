@@ -4,6 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Technovação</title>
+  <!-- CSP: Permite scripts apenas do próprio site, imagens do próprio site + placeholder + API -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: https://via.placeholder.com http: https:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' http: https:;">
   <link rel="stylesheet" href="styles.css"/>
 </head>
 <body>
@@ -85,88 +87,8 @@
   </div>
 </div>
 
-<!-- DASHBOARD -->
-<div id="dashboard" style="display:none">
-
-  <header>
-    <h2 id="userName">Usuário</h2>
-    <button onclick="logout()">Sair</button>
-  </header>
-
-  <!-- EQUIPES -->
-  <section>
-    <h3>Minhas Equipes</h3>
-    <div id="teamSection"></div>
-  </section>
-
-  <!-- MEMBROS -->
-  <section id="membersSection" style="display:none">
-    <h3>Membros</h3>
-    <ul id="membersList"></ul>
-    <div id="addMemberArea">
-      <h4 style="margin-top: 1rem; margin-bottom: 0.5rem; color: var(--primary);">Adicionar Membro</h4>
-      <div id="memberMessage" style="margin-bottom: 0.5rem; font-size: 0.9rem; color: #f87171;"></div>
-      <form onsubmit="handleAddMember(event)">
-        <input id="memberEmail" type="email" placeholder="Email do membro" required />
-        <button>Adicionar</button>
-      </form>
-    </div>
-  </section>
-
-  <!-- ROBÔS -->
-  <section id="teamRobotsSection" style="display:none">
-    <h3>Robôs</h3>
-    <ul id="teamRobotsList"></ul>
-  </section>
-
-  <!-- CADASTRAR ROBÔ -->
-  <section id="robotSection" style="display:none">
-    <h3>Cadastrar Robô</h3>
-    <div id="robotMessage"></div>
-    <form onsubmit="handleCreateRobot(event)">
-      <input id="robotName" placeholder="Nome do robô" required />
-      <input type="file" id="robotPhoto" accept="image/*" style="background: var(--surface); color: var(--text);" required />
-      <select id="robotCategory" required>
-        <option value="">Selecione categoria</option>
-      </select>
-      <button>Cadastrar</button>
-    </form>
-  </section>
-
-  <!-- PAGAMENTOS -->
-  <section id="paymentSection" style="display:none; border-color: #22c55e;">
-    <h3 style="color: #22c55e;">Pagamentos Pendentes</h3>
-    <p style="font-size: 0.9rem; color: #aaa; margin-bottom: 20px;">Selecione os itens para pagar (Apenas Líder) — <span style="color: #f87171;">Limite de 400 inscritos pagos no evento.</span></p>
-    
-    <div id="paymentList">
-      <!-- Checkboxes serão gerados aqui -->
-    </div>
-
-    <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
-      <h3 id="totalPrice" style="margin:0;">Total: R$ 0,00</h3>
-      <button onclick="handleCheckout()" style="background-color: #22c55e;">Pagar Agora</button>
-    </div>
-  </section>
-
-  <!-- CRIAR EQUIPE -->
-  <section>
-    <h3>Criar Nova Equipe</h3>
-    <div id="createTeamMessage" style="margin-bottom: 10px; font-size: 0.9rem;"></div>
-    <form onsubmit="handleCreateTeam(event)">
-      <input id="teamName" placeholder="Nome da equipe" required />
-      <input id="teamInstitution" placeholder="Instituição de Ensino / Empresa" />
-      <input type="file" id="teamPhoto" accept="image/*" style="background: var(--surface); color: var(--text);" required />
-      <button>Criar Equipe</button>
-    </form>
-  </section>
-
-  <div class="card">
-    <h3>Robôs por Categoria</h3>
-    <div id="robotsByCategory" class="robots-grid"></div>
-  </div>
-
-</div>
-
-<script src="script.js"></script>
+<script src="config.js"></script>
+<script src="validators.js"></script>
+<script src="landing.js"></script>
 </body>
 </html>
