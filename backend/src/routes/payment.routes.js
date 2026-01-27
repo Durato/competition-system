@@ -52,7 +52,7 @@ router.post("/checkout", auth, leader, async (req, res) => {
 
     // 2. Robôs (R$ 20,00)
     if (robotIds && robotIds.length > 0) {
-      const robots = await pool.query("SELECT name FROM robots WHERE id = ANY($1::int[])", [robotIds]);
+      const robots = await pool.query("SELECT name FROM robots WHERE id = ANY($1::uuid[])", [robotIds]);
       robots.rows.forEach(r => {
         items.push({
           type: 'robot',

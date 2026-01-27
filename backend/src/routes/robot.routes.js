@@ -3,30 +3,35 @@ import pool from "../db/pool.js";
 import { auth } from "../middleware/auth.js";
 import { leader } from "../middleware/leader.js";
 import multer from "multer";
+import DatauriParser from "datauri/parser.js";
 import path from "path";
+import cloudinary from "../config/cloudinary.js";
 
 const router = Router();
 
 // Configuração do Multer (Upload)
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, "uploads/"); // Pasta onde salva
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-    cb(null, uniqueSuffix + path.extname(file.originalname));
-  }
-});
-const upload = multer({ storage });
+// Agora usa memoryStorage para processar o arquivo em memória antes de enviar para o Cloudinary
+const storage = multer.memoryStorage();
+const upload = multer({ storage: storage });
 
 router.post("/", auth, upload.single("photo"), leader, async (req, res) => {
   const { name, teamId, categoryId } = req.body;
-  const photo = req.file ? req.file.filename : null; // Nome do arquivo salvo
+  let photoUrl = null;
 
   if (!name || !teamId || !categoryId)
     return res.status(400).json({ error: "Preencha todos os campos" });
 
   try {
+    if (req.file) {
+      const parser = new DatauriParser();
+      const fileExtension = path.extname(req.file.originalname).toString();
+      const fileDataUri = parser.format(fileExtension, req.file.buffer);
+      const result = await cloudinary.uploader.upload(fileDataUri.content, {
+        folder: "competition_system/robots",
+      });
+      photoUrl = result.secure_url;
+    }
+
     const category = await pool.query("SELECT robot_limit FROM categories WHERE id = $1", [categoryId]);
 
     if (category.rowCount === 0) return res.status(404).json({ error: "Categoria nÃ£o encontrada" });
@@ -38,7 +43,7 @@ router.post("/", auth, upload.single("photo"), leader, async (req, res) => {
 
     const result = await pool.query(
       "INSERT INTO robots (name, team_id, category_id, photo) VALUES ($1, $2, $3, $4) RETURNING *",
-      [name, teamId, categoryId, photo]
+      [name, teamId, categoryId, photoUrl]
     );
 
     res.status(201).json(result.rows[0]);

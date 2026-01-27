@@ -2,34 +2,39 @@ import { Router } from "express";
 import pool from "../db/pool.js";
 import { auth } from "../middleware/auth.js";
 import multer from "multer";
+import DatauriParser from "datauri/parser.js";
 import path from "path";
+import cloudinary from "../config/cloudinary.js";
 
 const router = Router();
 
 // Configuração do Multer (Upload)
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, "uploads/");
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-    cb(null, uniqueSuffix + path.extname(file.originalname));
-  }
-});
-const upload = multer({ storage });
+// Agora usa memoryStorage para processar o arquivo em memória antes de enviar para o Cloudinary
+const storage = multer.memoryStorage();
+const upload = multer({ storage: storage });
 
 // --- CRIAR EQUIPE ---
 router.post("/", auth, upload.single("photo"), async (req, res) => {
   const { name, institution } = req.body;
   const leader_id = req.user.id;
-  const photo = req.file ? req.file.filename : null;
+  let photoUrl = null;
 
   if (!name) return res.status(400).json({ error: "Nome da equipe Ã© obrigatÃ³rio" });
 
   try {
+    if (req.file) {
+      const parser = new DatauriParser();
+      const fileExtension = path.extname(req.file.originalname).toString();
+      const fileDataUri = parser.format(fileExtension, req.file.buffer);
+      const result = await cloudinary.uploader.upload(fileDataUri.content, {
+        folder: "competition_system/teams",
+      });
+      photoUrl = result.secure_url;
+    }
+
     const result = await pool.query(
       "INSERT INTO teams (name, leader_id, institution, photo) VALUES ($1, $2, $3, $4) RETURNING *",
-      [name, leader_id, institution, photo]
+      [name, leader_id, institution, photoUrl]
     );
 
     // Adiciona lÃ­der como membro tambÃ©m
