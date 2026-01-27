@@ -6,5 +6,5 @@ const isLocal = hostname === "localhost" ||
 
 const Config = {
   // Usa o hostname atual (ex: 10.0.1.51) para montar a URL da API na porta 3000
-  API_URL: isLocal ? `http://${hostname}:3000` : "https://api.seusite.com"
+  API_URL: isLocal ? `http://${hostname}:3000` : "https://competition-system-anar.onrender.com"
 };

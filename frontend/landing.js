@@ -185,7 +185,9 @@ async function loadPublicTeams() {
       div.className = "team-public-card";
       
       // Se não tiver foto, usa um placeholder ou não mostra nada
-      const imgSrc = t.photo ? `${API}/uploads/${t.photo}` : "https://via.placeholder.com/100?text=Equipe";
+      const imgSrc = t.photo 
+        ? (t.photo.startsWith('http') ? t.photo : `${API}/uploads/${t.photo}`)
+        : "https://via.placeholder.com/100?text=Equipe";
       
       // Refatorado para evitar XSS em t.name e t.institution
       const img = document.createElement("img");
@@ -259,7 +261,7 @@ async function loadCategoriesAndRobots() {
           
           if (r.photo) {
             const img = document.createElement("img");
-            img.src = `${API}/uploads/${r.photo}`;
+            img.src = r.photo.startsWith('http') ? r.photo : `${API}/uploads/${r.photo}`;
             img.className = "robot-thumb";
             li.appendChild(img);
           }

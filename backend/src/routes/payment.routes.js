@@ -38,7 +38,7 @@ router.post("/checkout", auth, leader, async (req, res) => {
 
     // 1. Membros (R$ 55,00)
     if (memberIds && memberIds.length > 0) {
-      const members = await pool.query("SELECT name, email FROM users WHERE id = ANY($1::int[])", [memberIds]);
+      const members = await pool.query("SELECT name, email FROM users WHERE id = ANY($1::uuid[])", [memberIds]);
       members.rows.forEach(m => {
         items.push({
           type: 'participant',

@@ -174,7 +174,7 @@ async function loadMembers() {
     divInfo.style.alignItems = "center";
     if (m.photo) {
       const img = document.createElement("img");
-      img.src = `${API}/uploads/${m.photo}`;
+      img.src = m.photo.startsWith('http') ? m.photo : `${API}/uploads/${m.photo}`;
       img.className = "member-thumb";
       img.alt = "Foto do membro";
       divInfo.appendChild(img);
@@ -245,7 +245,7 @@ async function loadRobots() {
     divInfo.style.alignItems = "center";
     if (r.photo) {
       const img = document.createElement("img");
-      img.src = `${API}/uploads/${r.photo}`;
+      img.src = r.photo.startsWith('http') ? r.photo : `${API}/uploads/${r.photo}`;
       img.className = "robot-thumb";
       img.style.width = "50px";
       img.style.height = "50px";
@@ -355,7 +355,7 @@ async function loadCategoriesAndRobots() {
         li.style.justifyContent = "flex-start";
         if (r.photo) {
           const img = document.createElement("img");
-          img.src = `${API}/uploads/${r.photo}`;
+          img.src = r.photo.startsWith('http') ? r.photo : `${API}/uploads/${r.photo}`;
           img.className = "robot-thumb";
           li.appendChild(img);
         }
