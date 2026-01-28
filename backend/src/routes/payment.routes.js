@@ -5,11 +5,10 @@ import pool from "../db/pool.js";
 
 const router = Router();
 
-// Configurações do Even3
-// Você precisará da documentação da API do Even3 para obter o Endpoint correto e a Chave de API
-const EVEN3_API_URL = "https://www.even3.com.br/api/v1"; // Exemplo - Verifique a doc oficial
-const EVEN3_TOKEN = "d7a399b4-67b4-4a9d-9554-e786397c69f0"; 
-const EVEN3_EVENT_LINK = "https://www.even3.com.br/technovacao-robotica-687768/"; // Link oficial do evento
+// Configurações do Even3 (usar variáveis de ambiente)
+const EVEN3_API_URL = process.env.EVEN3_API_URL || "https://www.even3.com.br/api/v1";
+const EVEN3_TOKEN = process.env.EVEN3_TOKEN;
+const EVEN3_EVENT_LINK = process.env.EVEN3_EVENT_LINK || "https://www.even3.com.br/technovacao-robotica-687768/";
 
 router.post("/checkout", auth, leader, async (req, res) => {
   const { teamId, memberIds, robotIds } = req.body;
@@ -31,8 +30,7 @@ router.post("/checkout", auth, leader, async (req, res) => {
       }
     }
 
-    // --- PREPARAÇÃO DOS DADOS PARA API ---
-    // Recuperamos os dados do banco para enviar para a API do Even3
+    // --- LOG DOS ITENS PARA DEBUG ---
     const items = [];
     let totalAmount = 0;
 
@@ -40,12 +38,7 @@ router.post("/checkout", auth, leader, async (req, res) => {
     if (memberIds && memberIds.length > 0) {
       const members = await pool.query("SELECT name, email FROM users WHERE id = ANY($1::uuid[])", [memberIds]);
       members.rows.forEach(m => {
-        items.push({
-          type: 'participant',
-          name: m.name,
-          email: m.email,
-          amount: 55.00
-        });
+        items.push({ type: 'participant', name: m.name, email: m.email, amount: 55.00 });
         totalAmount += 55.00;
       });
     }
@@ -54,43 +47,61 @@ router.post("/checkout", auth, leader, async (req, res) => {
     if (robotIds && robotIds.length > 0) {
       const robots = await pool.query("SELECT name FROM robots WHERE id = ANY($1::uuid[])", [robotIds]);
       robots.rows.forEach(r => {
-        items.push({
-          type: 'robot',
-          name: r.name,
-          amount: 20.00
-        });
+        items.push({ type: 'robot', name: r.name, amount: 20.00 });
         totalAmount += 20.00;
       });
     }
 
-    // --- CHAMADA À API DO EVEN3 ---
-    try {
-      // Tenta criar a transação via API
-      const apiResponse = await fetch(`${EVEN3_API_URL}/transactions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${EVEN3_TOKEN}` },
-        body: JSON.stringify({ items, total: totalAmount, buyer_id: req.user.id })
-      });
+    console.log("Checkout iniciado:", { teamId, items, totalAmount });
 
-      if (apiResponse.ok) {
-        const apiData = await apiResponse.json();
-        // Se a API retornar um link de checkout específico, usamos ele
-        if (apiData.checkoutUrl) return res.json({ paymentUrl: apiData.checkoutUrl });
-      } else {
-        console.warn("API Even3 retornou erro (usando fallback):", await apiResponse.text());
-      }
-    } catch (apiError) {
-      console.error("Erro na integração Even3 (usando fallback):", apiError);
-    }
-
-    // --- MODO SIMPLIFICADO (Fallback) ---
-    // Enquanto a API não está configurada, redireciona para a página geral
-    console.log("Itens processados para checkout:", items);
+    // Redireciona para a página do evento Even3
+    // O pagamento será feito lá e o webhook notificará nosso sistema
     res.json({ paymentUrl: EVEN3_EVENT_LINK });
 
   } catch (err) {
     console.error("ERRO PAGAMENTO:", err);
     res.status(500).json({ error: "Erro ao gerar pagamento" });
+  }
+});
+
+// --- SINCRONIZAÇÃO MANUAL COM EVEN3 ---
+router.post("/sync", auth, async (req, res) => {
+  if (!EVEN3_TOKEN) {
+    return res.status(500).json({ error: "EVEN3_TOKEN não configurado" });
+  }
+
+  try {
+    const response = await fetch(`${EVEN3_API_URL}/payments`, {
+      headers: { 'Authorization-Token': EVEN3_TOKEN }
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("Erro API Even3:", errorText);
+      return res.status(response.status).json({ error: "Erro ao consultar Even3", details: errorText });
+    }
+
+    const { data } = await response.json();
+    let synced = 0;
+
+    for (const payment of data) {
+      if (payment.status === 'Pago' || payment.status === 'Confirmado') {
+        const result = await pool.query(
+          `UPDATE team_members
+           SET is_paid = true
+           WHERE user_id = (SELECT id FROM users WHERE email = $1)
+           AND is_paid = false`,
+          [payment.buyer_email]
+        );
+        synced += result.rowCount;
+      }
+    }
+
+    res.json({ total: data.length, synced });
+
+  } catch (err) {
+    console.error("Erro sync Even3:", err);
+    res.status(500).json({ error: "Erro na sincronização" });
   }
 });
 
