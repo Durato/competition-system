@@ -23,13 +23,18 @@ router.post("/", auth, upload.single("photo"), leader, async (req, res) => {
 
   try {
     if (req.file) {
-      const parser = new DatauriParser();
-      const fileExtension = path.extname(req.file.originalname).toString();
-      const fileDataUri = parser.format(fileExtension, req.file.buffer);
-      const result = await cloudinary.uploader.upload(fileDataUri.content, {
-        folder: "competition_system/robots",
-      });
-      photoUrl = result.secure_url;
+      try {
+        const parser = new DatauriParser();
+        const fileExtension = path.extname(req.file.originalname).toString();
+        const fileDataUri = parser.format(fileExtension, req.file.buffer);
+        const result = await cloudinary.uploader.upload(fileDataUri.content, {
+          folder: "competition_system/robots",
+        });
+        photoUrl = result.secure_url;
+      } catch (uploadErr) {
+        console.error("ERRO UPLOAD CLOUDINARY:", uploadErr);
+        // Continua sem foto se upload falhar
+      }
     }
 
     const category = await pool.query("SELECT robot_limit FROM categories WHERE id = $1", [categoryId]);
