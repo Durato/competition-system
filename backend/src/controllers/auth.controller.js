@@ -4,7 +4,7 @@ import jwt from "jsonwebtoken";
 
 export async function register(req, res) {
   const { name, email, password, birthdate, phone } = req.body;
-  const photo = req.file ? req.file.filename : null;
+  const photo = req.photoUrl || null;
 
   if (!name || !email || !password || !birthdate || !phone) {
     return res.status(400).json({ error: "Preencha todos os campos" });
