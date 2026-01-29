@@ -62,7 +62,7 @@ router.get("/category/:id", async (req, res) => {
   const categoryId = req.params.id;
   try {
     const result = await pool.query(
-      `SELECT r.id, r.name, r.photo, t.name AS team_name
+      `SELECT r.id, r.name, r.photo, r.is_paid, t.name AS team_name
        FROM robots r
        JOIN teams t ON t.id = r.team_id
        WHERE r.category_id = $1`,
