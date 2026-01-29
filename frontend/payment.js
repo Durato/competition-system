@@ -4,6 +4,7 @@
 let mp = null;
 let cardPaymentBrickController = null;
 let currentPaymentData = null;
+let currentPixPaymentId = null; // Track current PIX payment to avoid recreating
 
 // Initialize Mercado Pago SDK
 async function initMercadoPago() {
@@ -29,6 +30,7 @@ async function initMercadoPago() {
 // Open payment modal
 function openPaymentModal(paymentData) {
   currentPaymentData = paymentData;
+  currentPixPaymentId = null; // Reset PIX payment
 
   // Update total display
   const totalDisplay = document.getElementById('paymentTotalDisplay');
@@ -45,13 +47,25 @@ function openPaymentModal(paymentData) {
 function closePaymentModal() {
   document.getElementById('paymentModal').style.display = 'none';
 
-  // Cleanup
+  // Stop polling
+  if (paymentPollingInterval) {
+    clearInterval(paymentPollingInterval);
+    paymentPollingInterval = null;
+  }
+
+  // Cleanup card brick
   if (cardPaymentBrickController) {
-    cardPaymentBrickController.unmount();
+    try {
+      cardPaymentBrickController.unmount();
+    } catch (e) {
+      console.log('[Payment] Error unmounting brick on close:', e);
+    }
     cardPaymentBrickController = null;
   }
 
+  // Reset state
   currentPaymentData = null;
+  currentPixPaymentId = null;
 
   // Reset PIX content
   document.getElementById('pixResult').style.display = 'none';
@@ -71,8 +85,22 @@ function switchPaymentTab(tab) {
 
   if (tab === 'pix') {
     document.getElementById('pixContent').classList.add('active');
-    processPIXPayment();
+    // Only process PIX if we haven't already
+    if (!currentPixPaymentId) {
+      processPIXPayment();
+    } else {
+      // Resume polling if we had a PIX payment
+      if (paymentPollingInterval) {
+        clearInterval(paymentPollingInterval);
+      }
+      startPaymentPolling(currentPixPaymentId);
+    }
   } else if (tab === 'card') {
+    // Stop PIX polling when switching to card
+    if (paymentPollingInterval) {
+      clearInterval(paymentPollingInterval);
+      paymentPollingInterval = null;
+    }
     document.getElementById('cardContent').classList.add('active');
     loadCardPaymentBrick();
   }
@@ -107,6 +135,9 @@ async function processPIXPayment() {
     const data = await res.json();
 
     if (data.success && data.payment.pix) {
+      // Save payment ID to avoid recreating
+      currentPixPaymentId = data.payment.id;
+
       // Display PIX QR Code and code
       document.getElementById('pixQRCode').src = `data:image/png;base64,${data.payment.pix.qr_code_base64}`;
       document.getElementById('pixCode').value = data.payment.pix.qr_code;
@@ -144,14 +175,24 @@ function copyPixCode() {
 // Load Card Payment Brick
 async function loadCardPaymentBrick() {
   if (!mp) {
-    initMercadoPago();
+    await initMercadoPago();
+  }
+
+  if (!mp) {
+    showToast('Erro ao inicializar Mercado Pago. Tente novamente.', 'error');
+    return;
   }
 
   if (!currentPaymentData) return;
 
   // Unmount previous instance if exists
   if (cardPaymentBrickController) {
-    cardPaymentBrickController.unmount();
+    try {
+      cardPaymentBrickController.unmount();
+    } catch (e) {
+      console.log('[Payment] Error unmounting previous brick:', e);
+    }
+    cardPaymentBrickController = null;
   }
 
   try {
@@ -281,18 +322,40 @@ function startPaymentPolling(paymentId) {
     }
 
     try {
-      // Check if payment was approved by reloading payment data
-      // In a real implementation, you'd have an endpoint to check payment status
-      // For now, we'll just reload the payment data and check if items are paid
-      const res = await authFetch(`${API}/teams/${currentPaymentData.teamId}/members`);
-      const members = await res.json();
+      // Check if payment was approved by checking both members and robots
+      let allItemsPaid = false;
 
-      // Check if all selected members are now paid
-      const allPaid = currentPaymentData.memberIds.every(id =>
-        members.find(m => m.id === id)?.is_paid
-      );
+      // Check members if any were selected
+      if (currentPaymentData.memberIds && currentPaymentData.memberIds.length > 0) {
+        const memberRes = await authFetch(`${API}/teams/${currentPaymentData.teamId}/members`);
+        const members = await memberRes.json();
 
-      if (allPaid) {
+        const membersPaid = currentPaymentData.memberIds.every(id =>
+          members.find(m => m.id === id)?.is_paid
+        );
+
+        allItemsPaid = membersPaid;
+      } else {
+        // If no members selected, consider this part as "paid"
+        allItemsPaid = true;
+      }
+
+      // Check robots if any were selected
+      if (allItemsPaid && currentPaymentData.robotIds && currentPaymentData.robotIds.length > 0) {
+        const robotRes = await authFetch(`${API}/teams/${currentPaymentData.teamId}/robots`);
+        const robots = await robotRes.json();
+
+        const robotsPaid = currentPaymentData.robotIds.every(id =>
+          robots.find(r => r.id === id)?.is_paid
+        );
+
+        allItemsPaid = robotsPaid;
+      }
+
+      // Only close modal if we actually had items to pay and they're all paid
+      const hasItems = (currentPaymentData.memberIds?.length > 0 || currentPaymentData.robotIds?.length > 0);
+
+      if (allItemsPaid && hasItems) {
         clearInterval(paymentPollingInterval);
         showToast('Pagamento confirmado com sucesso!', 'success');
         closePaymentModal();
