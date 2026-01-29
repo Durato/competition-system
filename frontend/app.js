@@ -217,7 +217,7 @@ function handleRemoveMember(memberId, memberName) {
     `Tem certeza que deseja remover ${memberName} da equipe?`,
     async () => {
       try {
-        showLoading();
+        toggleLoader(true);
         const res = await authFetch(`${API}/teams/${currentTeam}/members/${memberId}`, {
           method: "DELETE"
         });
@@ -233,7 +233,7 @@ function handleRemoveMember(memberId, memberName) {
       } catch (err) {
         showToast("Erro de conexão", "error");
       } finally {
-        hideLoading();
+        toggleLoader(false);
       }
     }
   );
