@@ -85,16 +85,9 @@ function switchPaymentTab(tab) {
 
   if (tab === 'pix') {
     document.getElementById('pixContent').classList.add('active');
-    // Only process PIX if we haven't already
-    if (!currentPixPaymentId) {
-      processPIXPayment();
-    } else {
-      // Resume polling if we had a PIX payment
-      if (paymentPollingInterval) {
-        clearInterval(paymentPollingInterval);
-      }
-      startPaymentPolling(currentPixPaymentId);
-    }
+    // SEMPRE gera um novo PIX quando a aba é aberta
+    // Isso garante que cada novo pagamento tenha seu próprio QR code
+    processPIXPayment();
   } else if (tab === 'card') {
     // Stop PIX polling when switching to card
     if (paymentPollingInterval) {
