@@ -10,6 +10,13 @@ const router = Router();
 const PRICE_MEMBER = 0.10;
 const PRICE_ROBOT = 0.10;
 
+// --- ROTA PÚBLICA: RETORNA PUBLIC KEY DO MERCADO PAGO ---
+router.get("/config", (req, res) => {
+  res.json({
+    mercadoPagoPublicKey: process.env.MERCADOPAGO_PUBLIC_KEY
+  });
+});
+
 router.post("/checkout", auth, leader, async (req, res) => {
   const { teamId, memberIds, robotIds } = req.body;
   const userId = req.user.id;
@@ -186,6 +193,185 @@ router.get("/pending/:teamId", auth, async (req, res) => {
   } catch (err) {
     console.error("Erro buscar pending:", err);
     res.status(500).json({ error: "Erro ao buscar pagamentos pendentes" });
+  }
+});
+
+// --- PROCESSAR PAGAMENTO DIRETO (PIX ou Cartão) - Checkout Bricks ---
+router.post("/process", auth, leader, async (req, res) => {
+  const {
+    teamId,
+    memberIds,
+    robotIds,
+    payment_method_id,
+    token,
+    installments,
+    issuer_id,
+    payer
+  } = req.body;
+  const userId = req.user.id;
+
+  try {
+    // Validações básicas
+    if ((!memberIds || memberIds.length === 0) && (!robotIds || robotIds.length === 0)) {
+      return res.status(400).json({ error: "Nenhum item selecionado para pagamento." });
+    }
+
+    if (!payment_method_id) {
+      return res.status(400).json({ error: "Método de pagamento não especificado." });
+    }
+
+    // --- VERIFICAÇÃO DE LIMITE GLOBAL (400 INSCRITOS) ---
+    if (memberIds && memberIds.length > 0) {
+      const LIMIT = 400;
+      const countRes = await pool.query("SELECT COUNT(*) FROM team_members WHERE is_paid = true");
+      const currentPaid = parseInt(countRes.rows[0].count);
+
+      if (currentPaid + memberIds.length > LIMIT) {
+        return res.status(400).json({
+          error: `Limite de inscritos atingido! Restam apenas ${Math.max(0, LIMIT - currentPaid)} vagas.`
+        });
+      }
+    }
+
+    // Buscar dados do usuário
+    const userRes = await pool.query("SELECT email, name FROM users WHERE id = $1", [userId]);
+    const userEmail = userRes.rows[0].email;
+    const userName = userRes.rows[0].name;
+
+    // --- VALIDAR PERTENCIMENTO À EQUIPE ---
+    if (memberIds && memberIds.length > 0) {
+      const memberCheck = await pool.query(
+        "SELECT user_id FROM team_members WHERE team_id = $1 AND user_id = ANY($2::uuid[])",
+        [teamId, memberIds]
+      );
+      if (memberCheck.rowCount !== memberIds.length) {
+        return res.status(400).json({ error: "Alguns membros não pertencem a esta equipe." });
+      }
+    }
+
+    if (robotIds && robotIds.length > 0) {
+      const robotCheck = await pool.query(
+        "SELECT id FROM robots WHERE team_id = $1 AND id = ANY($2::uuid[])",
+        [teamId, robotIds]
+      );
+      if (robotCheck.rowCount !== robotIds.length) {
+        return res.status(400).json({ error: "Alguns robôs não pertencem a esta equipe." });
+      }
+    }
+
+    // --- CALCULAR TOTAL E DESCRIÇÃO ---
+    let totalAmount = 0;
+    let description = "Technovação 2026 - ";
+    const items = [];
+
+    if (memberIds && memberIds.length > 0) {
+      const members = await pool.query(
+        "SELECT id, name FROM users WHERE id = ANY($1::uuid[])",
+        [memberIds]
+      );
+      totalAmount += PRICE_MEMBER * members.rows.length;
+      items.push(`${members.rows.length} membro(s)`);
+    }
+
+    if (robotIds && robotIds.length > 0) {
+      const robots = await pool.query(
+        "SELECT id, name FROM robots WHERE id = ANY($1::uuid[]) AND team_id = $2",
+        [robotIds, teamId]
+      );
+      totalAmount += PRICE_ROBOT * robots.rows.length;
+      items.push(`${robots.rows.length} robô(s)`);
+    }
+
+    description += items.join(", ");
+
+    console.log("[Payment Process] Processando pagamento:", {
+      teamId,
+      userId,
+      payment_method_id,
+      totalAmount,
+      description
+    });
+
+    // --- CRIAR PAGAMENTO DIRETO NO MERCADO PAGO ---
+    const payment = await mercadopagoService.createDirectPayment({
+      payment_method_id,
+      transaction_amount: totalAmount,
+      description,
+      payer: payer || {
+        email: userEmail,
+        name: userName
+      },
+      metadata: {
+        teamId: teamId,
+        memberIds: memberIds || [],
+        robotIds: robotIds || [],
+        userId: userId
+      },
+      token,
+      installments: installments || 1,
+      issuer_id
+    });
+
+    // --- SALVAR PENDING PAYMENT ---
+    try {
+      await pool.query(
+        `INSERT INTO pending_payments
+         (user_id, team_id, user_email, member_ids, robot_ids, total_amount, status, mp_payment_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [userId, teamId, userEmail, memberIds || [], robotIds || [], totalAmount,
+         payment.status === 'approved' ? 'completed' : 'pending', payment.id.toString()]
+      );
+      console.log("[Payment Process] Pending payment salvo com ID:", payment.id);
+    } catch (pendingErr) {
+      console.error("[Payment Process] Erro ao salvar pending_payment:", pendingErr.message);
+    }
+
+    // Se o pagamento já foi aprovado (improvável, mas possível), processar imediatamente
+    if (payment.status === 'approved') {
+      console.log("[Payment Process] Pagamento aprovado imediatamente");
+
+      // Atualizar membros e robôs como pagos
+      if (memberIds && memberIds.length > 0) {
+        await pool.query(
+          `UPDATE team_members SET is_paid = true WHERE user_id = ANY($1::uuid[]) AND is_paid = false`,
+          [memberIds]
+        );
+      }
+
+      if (robotIds && robotIds.length > 0) {
+        await pool.query(
+          `UPDATE robots SET is_paid = true WHERE id = ANY($1::uuid[]) AND is_paid = false`,
+          [robotIds]
+        );
+      }
+    }
+
+    // --- RETORNAR RESPOSTA ---
+    res.json({
+      success: true,
+      payment: {
+        id: payment.id,
+        status: payment.status,
+        status_detail: payment.status_detail,
+        payment_method_id: payment.payment_method_id,
+        transaction_amount: payment.transaction_amount,
+        // Para PIX, retornar QR Code e código de cópia
+        ...(payment.payment_method_id === 'pix' && payment.point_of_interaction && {
+          pix: {
+            qr_code: payment.point_of_interaction.transaction_data.qr_code,
+            qr_code_base64: payment.point_of_interaction.transaction_data.qr_code_base64,
+            ticket_url: payment.point_of_interaction.transaction_data.ticket_url
+          }
+        })
+      }
+    });
+
+  } catch (err) {
+    console.error("ERRO PAYMENT PROCESS:", err);
+    res.status(500).json({
+      error: "Erro ao processar pagamento",
+      details: err.message
+    });
   }
 });
 

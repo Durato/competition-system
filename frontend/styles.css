@@ -442,3 +442,96 @@ li:last-child {
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+
+/* --- Payment Modal Styles --- */
+.payment-modal-box {
+  background: var(--surface);
+  padding: 40px;
+  border-radius: 16px;
+  width: 90%;
+  max-width: 550px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  position: relative;
+  animation: modalSlide 0.3s ease-out;
+}
+
+.close-modal-btn {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font-size: 2rem;
+  cursor: pointer;
+  padding: 0;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: background 0.2s;
+}
+
+.close-modal-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  transform: none;
+}
+
+.payment-tabs {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 25px;
+  border-bottom: 2px solid var(--border);
+}
+
+.payment-tab {
+  flex: 1;
+  padding: 12px 20px;
+  background: transparent;
+  border: none;
+  border-bottom: 3px solid transparent;
+  color: var(--text);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-bottom: -2px;
+}
+
+.payment-tab:hover {
+  background: rgba(255, 102, 0, 0.05);
+  transform: none;
+}
+
+.payment-tab.active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+  background: rgba(255, 102, 0, 0.1);
+}
+
+.payment-content {
+  display: none;
+  animation: fadeIn 0.3s ease-out;
+}
+
+.payment-content.active {
+  display: block;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Mercado Pago Card Payment Brick Customization */
+#cardPaymentBrick_container {
+  margin-top: 20px;
+}
+
+/* Override Mercado Pago styles to match dark theme */
+#cardPaymentBrick_container iframe {
+  border-radius: 8px;
+}

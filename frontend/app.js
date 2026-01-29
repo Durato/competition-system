@@ -502,21 +502,34 @@ async function handleCheckout() {
   const checkboxes = document.querySelectorAll(".pay-checkbox:checked");
   const memberIds = Array.from(checkboxes).filter(c => c.dataset.type === 'member').map(c => c.dataset.id);
   const robotIds = Array.from(checkboxes).filter(c => c.dataset.type === 'robot').map(c => c.dataset.id);
+
   if (memberIds.length === 0 && robotIds.length === 0) {
     showToast("Selecione pelo menos um item para pagar.", "warning");
     return;
   }
+
+  // Calculate total
+  let total = 0;
+  checkboxes.forEach(cb => {
+    total += parseFloat(cb.dataset.price);
+  });
+
+  // Get user data
   try {
-    const res = await authFetch(`${API}/payments/checkout`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ teamId: currentTeam, memberIds, robotIds })
+    const userRes = await authFetch(API + "/auth/me");
+    const user = await userRes.json();
+
+    // Open payment modal with data
+    openPaymentModal({
+      teamId: currentTeam,
+      memberIds,
+      robotIds,
+      total,
+      email: user.email,
+      userName: user.name
     });
-    const data = await res.json();
-    if (data.paymentUrl) window.location.href = data.paymentUrl;
-    else showToast(data.error || "Erro ao gerar pagamento", "error");
   } catch (err) {
-    showToast("Erro de conexão ao gerar pagamento", "error");
+    showToast("Erro ao carregar dados do usuário", "error");
   }
 }
 

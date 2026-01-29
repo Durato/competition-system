@@ -113,8 +113,104 @@ export function getPaymentMetadata(payment) {
   return payment.metadata || {};
 }
 
+/**
+ * Cria um pagamento direto (PIX ou Cartão de Crédito) - Checkout Bricks
+ * @param {Object} data - Dados do pagamento
+ * @param {string} data.payment_method_id - Método de pagamento (pix, credit_card, etc)
+ * @param {number} data.transaction_amount - Valor total do pagamento
+ * @param {string} data.description - Descrição do pagamento
+ * @param {Object} data.payer - Dados do pagador {email, first_name, last_name}
+ * @param {Object} data.metadata - Dados customizados (teamId, memberIds, robotIds, userId)
+ * @param {Object} [data.token] - Token do cartão (obrigatório para cartão de crédito)
+ * @param {number} [data.installments] - Número de parcelas (padrão: 1)
+ * @param {string} [data.issuer_id] - ID do emissor do cartão
+ * @returns {Promise<Object>} - Pagamento criado
+ */
+export async function createDirectPayment(data) {
+  const {
+    payment_method_id,
+    transaction_amount,
+    description,
+    payer,
+    metadata,
+    token,
+    installments = 1,
+    issuer_id
+  } = data;
+
+  if (!payment_method_id) {
+    throw new Error('payment_method_id é obrigatório');
+  }
+
+  if (!transaction_amount || transaction_amount <= 0) {
+    throw new Error('transaction_amount deve ser maior que zero');
+  }
+
+  if (!payer || !payer.email) {
+    throw new Error('Dados do pagador (email) são obrigatórios');
+  }
+
+  if (!process.env.MERCADOPAGO_ACCESS_TOKEN) {
+    throw new Error('MERCADOPAGO_ACCESS_TOKEN não configurado no .env');
+  }
+
+  // Para cartão de crédito, o token é obrigatório
+  if (payment_method_id !== 'pix' && !token) {
+    throw new Error('Token do cartão é obrigatório para pagamento com cartão');
+  }
+
+  console.log('[MercadoPago] Criando pagamento direto:', {
+    payment_method_id,
+    transaction_amount,
+    payer_email: payer.email,
+    metadata
+  });
+
+  try {
+    const paymentData = {
+      payment_method_id,
+      transaction_amount,
+      description,
+      payer: {
+        email: payer.email,
+        first_name: payer.first_name || payer.name?.split(' ')[0] || 'Cliente',
+        last_name: payer.last_name || payer.name?.split(' ').slice(1).join(' ') || 'Technovação'
+      },
+      notification_url: `${process.env.BACKEND_URL}/webhook/mercadopago`,
+      statement_descriptor: 'TECHNOVACAO',
+      metadata: metadata || {}
+    };
+
+    // Adiciona token e installments apenas para pagamentos com cartão
+    if (payment_method_id !== 'pix') {
+      paymentData.token = token;
+      paymentData.installments = installments;
+      if (issuer_id) {
+        paymentData.issuer_id = issuer_id;
+      }
+    }
+
+    const payment = await paymentClient.create({
+      body: paymentData
+    });
+
+    console.log('[MercadoPago] Pagamento criado com sucesso:', {
+      id: payment.id,
+      status: payment.status,
+      payment_method_id: payment.payment_method_id
+    });
+
+    return payment;
+
+  } catch (error) {
+    console.error('[MercadoPago] Erro ao criar pagamento direto:', error);
+    throw new Error('Erro ao processar pagamento: ' + error.message);
+  }
+}
+
 export default {
   createPaymentPreference,
+  createDirectPayment,
   getPayment,
   isPaymentApproved,
   getPaymentMetadata

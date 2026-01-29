@@ -126,16 +126,30 @@ async function processApprovedPayment(payment) {
 
   // 3. Atualizar pending_payment como completo
   try {
-    const pendingResult = await pool.query(
+    // Primeiro tenta encontrar por mp_payment_id (para pagamentos diretos do Checkout Bricks)
+    let pendingResult = await pool.query(
       `UPDATE pending_payments
        SET status = 'completed',
-           completed_at = NOW(),
-           mp_payment_id = $1
-       WHERE team_id = $2
-       AND user_id = $3
+           completed_at = NOW()
+       WHERE mp_payment_id = $1
        AND status = 'pending'`,
-      [payment.id.toString(), teamId, userId]
+      [payment.id.toString()]
     );
+
+    // Se não encontrou, tenta por mp_preference_id e metadata (para pagamentos antigos do Checkout Pro)
+    if (pendingResult.rowCount === 0) {
+      pendingResult = await pool.query(
+        `UPDATE pending_payments
+         SET status = 'completed',
+             completed_at = NOW(),
+             mp_payment_id = $1
+         WHERE team_id = $2
+         AND user_id = $3
+         AND status = 'pending'`,
+        [payment.id.toString(), teamId, userId]
+      );
+    }
+
     console.log(`[Webhook MP] ${pendingResult.rowCount} pending_payments marcados como completos`);
   } catch (err) {
     console.error("[Webhook MP] Erro ao atualizar pending_payment:", err);
