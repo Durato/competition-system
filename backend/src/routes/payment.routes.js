@@ -6,9 +6,9 @@ import * as mercadopagoService from "../services/mercadopago.service.js";
 
 const router = Router();
 
-// Preços unificados
-const PRICE_MEMBER = 55.00;
-const PRICE_ROBOT = 55.00;
+// Preços unificados (TESTE - R$ 0,10)
+const PRICE_MEMBER = 0.10;
+const PRICE_ROBOT = 0.10;
 
 router.post("/checkout", auth, leader, async (req, res) => {
   const { teamId, memberIds, robotIds } = req.body;
