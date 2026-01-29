@@ -1,10 +1,27 @@
 import { Router } from "express";
 import pool from "../db/pool.js";
+import { auth } from "../middleware/auth.js";
 
 const router = Router();
 
 // Token de segurança do webhook (configurado no Even3)
 const WEBHOOK_TOKEN = process.env.EVEN3_WEBHOOK_TOKEN;
+
+/**
+ * Salva webhook no banco para auditoria
+ */
+async function saveWebhookLog(source, action, payload, headers) {
+  try {
+    await pool.query(
+      `INSERT INTO webhook_logs (source, action, payload, headers, received_at)
+       VALUES ($1, $2, $3, $4, NOW())`,
+      [source, action, JSON.stringify(payload), JSON.stringify(headers)]
+    );
+  } catch (err) {
+    // Tabela pode não existir ainda - não é crítico
+    console.log("[Webhook] Não foi possível salvar log no banco:", err.message);
+  }
+}
 
 // Webhook da Even3 - Recebe notificações de inscrição e pagamento
 router.post("/even3", async (req, res) => {
@@ -14,6 +31,9 @@ router.post("/even3", async (req, res) => {
   console.log("Headers:", JSON.stringify(req.headers, null, 2));
   console.log("Body:", JSON.stringify(req.body, null, 2));
   console.log("==============================");
+
+  // Salvar no banco antes de qualquer processamento
+  await saveWebhookLog('even3', req.body?.action || 'unknown', req.body, req.headers);
 
   try {
     // 2. Validar token de segurança (se configurado)
@@ -167,6 +187,24 @@ router.get("/even3/health", (req, res) => {
     timestamp: new Date().toISOString(),
     tokenConfigured: !!WEBHOOK_TOKEN
   });
+});
+
+// Endpoint para consultar logs de webhooks recebidos
+router.get("/even3/logs", auth, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT id, source, action, payload, headers, received_at, processed
+       FROM webhook_logs
+       WHERE source = 'even3'
+       ORDER BY received_at DESC
+       LIMIT 50`
+    );
+    res.json({ count: result.rowCount, logs: result.rows });
+  } catch (err) {
+    res.status(500).json({
+      error: "Tabela webhook_logs não existe. Execute a migração: backend/migrations/001_add_pending_payments.sql"
+    });
+  }
 });
 
 export default router;
