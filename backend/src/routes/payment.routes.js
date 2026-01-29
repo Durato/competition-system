@@ -6,9 +6,9 @@ import * as mercadopagoService from "../services/mercadopago.service.js";
 
 const router = Router();
 
-// Preços unificados (TESTE - R$ 0,10)
-const PRICE_MEMBER = 0.10;
-const PRICE_ROBOT = 0.10;
+// Preços unificados (TESTE - R$ 1,00)
+const PRICE_MEMBER = 1.00;
+const PRICE_ROBOT = 1.00;
 
 // --- ROTA PÚBLICA: RETORNA PUBLIC KEY DO MERCADO PAGO ---
 router.get("/config", (req, res) => {

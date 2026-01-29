@@ -446,7 +446,7 @@ async function loadPaymentData() {
     checkbox.className = "pay-checkbox";
     checkbox.dataset.type = "member";
     checkbox.dataset.id = m.id;
-    checkbox.dataset.price = "0.10";
+    checkbox.dataset.price = "1.00";
     checkbox.onchange = updateTotal;
     const infoDiv = document.createElement("div");
     const strongName = document.createElement("strong");
@@ -456,7 +456,7 @@ async function loadPaymentData() {
     infoDiv.appendChild(document.createElement("br"));
     const smallPrice = document.createElement("small");
     smallPrice.style.color = "#aaa";
-    smallPrice.textContent = "R$ 0,10";
+    smallPrice.textContent = "R$ 1,00";
     infoDiv.appendChild(smallPrice);
     div.appendChild(checkbox);
     div.appendChild(infoDiv);
@@ -470,7 +470,7 @@ async function loadPaymentData() {
     checkbox.className = "pay-checkbox";
     checkbox.dataset.type = "robot";
     checkbox.dataset.id = r.id;
-    checkbox.dataset.price = "0.10";
+    checkbox.dataset.price = "1.00";
     checkbox.onchange = updateTotal;
     const infoDiv = document.createElement("div");
     const strongName = document.createElement("strong");
@@ -480,7 +480,7 @@ async function loadPaymentData() {
     infoDiv.appendChild(document.createElement("br"));
     const smallPrice = document.createElement("small");
     smallPrice.style.color = "#aaa";
-    smallPrice.textContent = "R$ 0,10";
+    smallPrice.textContent = "R$ 1,00";
     infoDiv.appendChild(smallPrice);
     div.appendChild(checkbox);
     div.appendChild(infoDiv);
