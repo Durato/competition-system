@@ -1,11 +1,9 @@
 import { Router } from "express";
 import pool from "../db/pool.js";
 import { auth } from "../middleware/auth.js";
+import * as mercadopagoService from "../services/mercadopago.service.js";
 
 const router = Router();
-
-// Token de segurança do webhook (configurado no Even3)
-const WEBHOOK_TOKEN = process.env.EVEN3_WEBHOOK_TOKEN;
 
 /**
  * Salva webhook no banco para auditoria
@@ -18,214 +16,157 @@ async function saveWebhookLog(source, action, payload, headers) {
       [source, action, JSON.stringify(payload), JSON.stringify(headers)]
     );
   } catch (err) {
-    // Tabela pode não existir ainda - não é crítico
     console.log("[Webhook] Não foi possível salvar log no banco:", err.message);
   }
 }
 
-// Webhook da Even3 - Recebe notificações de inscrição e pagamento
-router.post("/even3", async (req, res) => {
-  // 1. Log completo para debug
-  console.log("=== WEBHOOK EVEN3 RECEBIDO ===");
+// Webhook do Mercado Pago - Recebe notificações de pagamento
+router.post("/mercadopago", async (req, res) => {
+  console.log("=== WEBHOOK MERCADO PAGO RECEBIDO ===");
   console.log("Timestamp:", new Date().toISOString());
   console.log("Headers:", JSON.stringify(req.headers, null, 2));
   console.log("Body:", JSON.stringify(req.body, null, 2));
-  console.log("==============================");
+  console.log("Query:", JSON.stringify(req.query, null, 2));
+  console.log("=====================================");
 
   // Salvar no banco antes de qualquer processamento
-  await saveWebhookLog('even3', req.body?.action || 'unknown', req.body, req.headers);
+  await saveWebhookLog('mercadopago', req.body?.type || req.query?.topic || 'unknown', req.body, req.headers);
 
   try {
-    // 2. Validar token de segurança (se configurado)
-    if (WEBHOOK_TOKEN) {
-      const receivedToken =
-        req.headers['x-even3-token'] ||
-        req.headers['authorization-token'] ||
-        req.headers['x-webhook-token'] ||
-        req.body?.token ||
-        req.body?.security_token;
+    // Mercado Pago envia notificações em diferentes formatos
+    const topic = req.query?.topic || req.body?.topic || req.body?.type;
+    const resourceId = req.query?.id || req.body?.data?.id || req.body?.id;
 
-      if (receivedToken !== WEBHOOK_TOKEN) {
-        console.warn("[Webhook] Token inválido recebido:", receivedToken?.substring(0, 5) + "...");
-        // Ainda retorna 200 para não gerar retentativas, mas loga o erro
-        return res.status(200).json({ received: true, warning: "Token validation failed" });
+    console.log(`[Webhook MP] Topic: ${topic}, Resource ID: ${resourceId}`);
+
+    // Responde imediatamente para confirmar recebimento
+    res.status(200).send("OK");
+
+    // Processa apenas notificações de pagamento
+    if (topic === 'payment' || topic === 'merchant_order') {
+      if (!resourceId) {
+        console.log("[Webhook MP] Nenhum ID de recurso encontrado");
+        return;
       }
-      console.log("[Webhook] Token validado com sucesso");
+
+      // Aguarda 2 segundos para dar tempo do MP processar
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      // Busca os detalhes do pagamento
+      const payment = await mercadopagoService.getPayment(resourceId);
+      console.log("[Webhook MP] Pagamento encontrado:", {
+        id: payment.id,
+        status: payment.status,
+        status_detail: payment.status_detail,
+        external_reference: payment.external_reference
+      });
+
+      // Verifica se o pagamento foi aprovado
+      if (mercadopagoService.isPaymentApproved(payment)) {
+        await processApprovedPayment(payment);
+      } else {
+        console.log(`[Webhook MP] Pagamento ${payment.id} não aprovado ainda. Status: ${payment.status}`);
+      }
     } else {
-      console.warn("[Webhook] EVEN3_WEBHOOK_TOKEN não configurado - aceitando todas as requisições");
+      console.log(`[Webhook MP] Topic não processado: ${topic}`);
     }
-
-    // 3. Extrair action e data (suportar múltiplos formatos)
-    const action = (
-      req.body?.action ||
-      req.body?.acao ||
-      req.body?.type ||
-      req.body?.evento ||
-      'unknown'
-    ).toLowerCase();
-
-    const data = req.body?.data || req.body?.dados || req.body;
-
-    console.log(`[Webhook] Action: ${action}`);
-
-    // 4. Processar conforme o tipo de ação
-    const saleActions = ['venda', 'sale', 'venda_aprovada', 'sale_approved', 'payment_confirmed', 'pagamento_confirmado'];
-    const registrationActions = ['inscricao', 'registration', 'inscricao_confirmada', 'registration_confirmed'];
-
-    if (saleActions.includes(action)) {
-      await handleSaleApproved(data);
-    } else if (registrationActions.includes(action)) {
-      await handleRegistration(data);
-    } else {
-      console.log(`[Webhook] Ação não tratada: ${action}`);
-    }
-
-    // 5. Sempre retorna 200 para confirmar recebimento
-    res.status(200).json({ received: true, action });
 
   } catch (err) {
-    console.error("[Webhook] Erro ao processar:", err);
-    // Retorna 200 mesmo com erro para evitar retentativas infinitas
-    // O erro está logado para investigação
-    res.status(200).json({ received: true, error: "Processing error logged" });
+    console.error("[Webhook MP] Erro ao processar:", err);
+    // Não retorna erro para o MP para evitar retentativas desnecessárias
   }
 });
 
 /**
- * Processa venda/pagamento aprovado
+ * Processa um pagamento aprovado
  */
-async function handleSaleApproved(data) {
-  // Extrair email de múltiplos campos possíveis
-  const email =
-    data?.buyer_email ||
-    data?.email ||
-    data?.email_attendee ||
-    data?.email_comprador ||
-    data?.pessoa?.email ||
-    data?.attendee?.email;
+async function processApprovedPayment(payment) {
+  console.log(`[Webhook MP] Processando pagamento aprovado: ${payment.id}`);
 
-  if (!email) {
-    console.error("[Webhook] Nenhum email encontrado no payload de venda");
+  // Extrai metadata (contém teamId, memberIds, robotIds)
+  const metadata = mercadopagoService.getPaymentMetadata(payment);
+  const { teamId, memberIds, robotIds, userId } = metadata;
+
+  if (!teamId) {
+    console.error("[Webhook MP] Nenhum teamId encontrado na metadata");
     return;
   }
 
-  console.log(`[Webhook] Processando pagamento para: ${email}`);
+  console.log("[Webhook MP] Metadata:", { teamId, memberIds, robotIds, userId });
 
-  // 1. Atualizar team_members
-  const memberResult = await pool.query(
-    `UPDATE team_members
-     SET is_paid = true
-     WHERE user_id = (SELECT id FROM users WHERE LOWER(email) = LOWER($1))
-     AND is_paid = false`,
-    [email]
-  );
-  console.log(`[Webhook] Team members atualizados: ${memberResult.rowCount}`);
+  // 1. Atualizar team_members como pagos
+  if (memberIds && memberIds.length > 0) {
+    try {
+      const memberResult = await pool.query(
+        `UPDATE team_members
+         SET is_paid = true
+         WHERE user_id = ANY($1::uuid[]) AND is_paid = false`,
+        [memberIds]
+      );
+      console.log(`[Webhook MP] ${memberResult.rowCount} membros marcados como pagos`);
+    } catch (err) {
+      console.error("[Webhook MP] Erro ao atualizar membros:", err);
+    }
+  }
 
-  // 2. Buscar e atualizar pending_payments
+  // 2. Atualizar robots como pagos
+  if (robotIds && robotIds.length > 0) {
+    try {
+      const robotResult = await pool.query(
+        `UPDATE robots
+         SET is_paid = true
+         WHERE id = ANY($1::uuid[]) AND is_paid = false`,
+        [robotIds]
+      );
+      console.log(`[Webhook MP] ${robotResult.rowCount} robôs marcados como pagos`);
+    } catch (err) {
+      console.error("[Webhook MP] Erro ao atualizar robôs:", err);
+    }
+  }
+
+  // 3. Atualizar pending_payment como completo
   try {
     const pendingResult = await pool.query(
       `UPDATE pending_payments
-       SET status = 'completed', completed_at = NOW()
-       WHERE LOWER(user_email) = LOWER($1)
-       AND status = 'pending'
-       RETURNING id, member_ids, robot_ids`,
-      [email]
+       SET status = 'completed',
+           completed_at = NOW(),
+           mp_payment_id = $1
+       WHERE team_id = $2
+       AND user_id = $3
+       AND status = 'pending'`,
+      [payment.id.toString(), teamId, userId]
     );
-
-    if (pendingResult.rowCount > 0) {
-      console.log(`[Webhook] Pending payments encontrados: ${pendingResult.rowCount}`);
-
-      for (const pending of pendingResult.rows) {
-        // Atualizar robots se houver
-        if (pending.robot_ids && pending.robot_ids.length > 0) {
-          const robotResult = await pool.query(
-            `UPDATE robots SET is_paid = true WHERE id = ANY($1::uuid[]) AND is_paid = false`,
-            [pending.robot_ids]
-          );
-          console.log(`[Webhook] Robots atualizados do pending ${pending.id}: ${robotResult.rowCount}`);
-        }
-
-        // Atualizar members adicionais se especificados
-        if (pending.member_ids && pending.member_ids.length > 0) {
-          const additionalMemberResult = await pool.query(
-            `UPDATE team_members
-             SET is_paid = true
-             WHERE user_id = ANY($1::uuid[]) AND is_paid = false`,
-            [pending.member_ids]
-          );
-          console.log(`[Webhook] Members adicionais atualizados do pending ${pending.id}: ${additionalMemberResult.rowCount}`);
-        }
-      }
-    } else {
-      console.log(`[Webhook] Nenhum pending_payment encontrado para ${email}`);
-    }
-  } catch (pendingErr) {
-    // Tabela pending_payments pode não existir ainda
-    console.log(`[Webhook] Nota: Tabela pending_payments não disponível: ${pendingErr.message}`);
+    console.log(`[Webhook MP] ${pendingResult.rowCount} pending_payments marcados como completos`);
+  } catch (err) {
+    console.error("[Webhook MP] Erro ao atualizar pending_payment:", err);
   }
 
-  // 3. Log do total de atualizações
-  console.log(`[Webhook] Pagamento processado com sucesso para ${email}`);
+  console.log(`[Webhook MP] Pagamento ${payment.id} processado com sucesso!`);
 }
 
-/**
- * Processa nova inscrição
- */
-async function handleRegistration(data) {
-  const email = data?.email || data?.pessoa?.email || data?.attendee?.email;
-  const name = data?.name || data?.nome || data?.pessoa?.nome || data?.attendee?.name;
-
-  console.log(`[Webhook] Nova inscrição recebida: ${name} (${email})`);
-
-  // Por enquanto apenas loga - pode ser usado para criar usuário automaticamente no futuro
-}
-
-// Endpoint de teste/health check para o webhook
-router.get("/even3/health", (req, res) => {
+// Endpoint de health check
+router.get("/mercadopago/health", (req, res) => {
   res.json({
     status: "ok",
-    timestamp: new Date().toISOString(),
-    tokenConfigured: !!WEBHOOK_TOKEN
+    service: "Mercado Pago Webhook",
+    timestamp: new Date().toISOString()
   });
 });
 
-// Endpoint para consultar logs de webhooks recebidos (requer auth)
-router.get("/even3/logs", auth, async (req, res) => {
+// Endpoint para consultar logs de webhooks (requer auth)
+router.get("/mercadopago/logs", auth, async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT id, source, action, payload, headers, received_at, processed
        FROM webhook_logs
-       WHERE source = 'even3'
+       WHERE source = 'mercadopago'
        ORDER BY received_at DESC
        LIMIT 50`
     );
     res.json({ count: result.rowCount, logs: result.rows });
   } catch (err) {
     res.status(500).json({
-      error: "Tabela webhook_logs não existe. Execute a migração: backend/migrations/001_add_pending_payments.sql"
-    });
-  }
-});
-
-// Endpoint de diagnóstico temporário (sem auth, com chave simples)
-router.get("/even3/debug", async (req, res) => {
-  const key = req.query.key;
-  if (key !== "techno26debug") {
-    return res.status(403).json({ error: "Chave inválida. Use ?key=techno26debug" });
-  }
-
-  try {
-    const logs = await pool.query(
-      `SELECT id, action, payload, received_at
-       FROM webhook_logs
-       WHERE source = 'even3'
-       ORDER BY received_at DESC
-       LIMIT 20`
-    );
-    res.json({ count: logs.rowCount, logs: logs.rows });
-  } catch (err) {
-    res.status(500).json({
-      error: "Tabela webhook_logs não existe",
+      error: "Erro ao buscar logs",
       message: err.message
     });
   }

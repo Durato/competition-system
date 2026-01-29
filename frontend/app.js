@@ -182,14 +182,59 @@ async function loadMembers() {
     const spanName = document.createElement("span");
     spanName.textContent = `${m.name} (${m.role})`;
     divInfo.appendChild(spanName);
+
+    const rightContainer = document.createElement("div");
+    rightContainer.style.display = "flex";
+    rightContainer.style.alignItems = "center";
+    rightContainer.style.gap = "10px";
+
     const spanStatus = document.createElement("span");
-    spanStatus.innerHTML = m.is_paid 
-      ? '<span style="color:#4ade80; font-size:0.8rem; border:1px solid #4ade80; padding:2px 6px; border-radius:4px;">PAGO</span>' 
+    spanStatus.innerHTML = m.is_paid
+      ? '<span style="color:#4ade80; font-size:0.8rem; border:1px solid #4ade80; padding:2px 6px; border-radius:4px;">PAGO</span>'
       : '<span style="color:#f87171; font-size:0.8rem;">PENDENTE</span>';
+    rightContainer.appendChild(spanStatus);
+
+    // Botão de remover (apenas para membros não pagos e não líderes)
+    if (!m.is_paid && m.role !== 'leader' && isLeader) {
+      const btnRemove = document.createElement("button");
+      btnRemove.textContent = "Remover";
+      btnRemove.style.cssText = "padding: 4px 8px; font-size: 0.8rem; background-color: #ef4444; border: none; cursor: pointer;";
+      btnRemove.onclick = () => handleRemoveMember(m.id, m.name);
+      rightContainer.appendChild(btnRemove);
+    }
+
     li.appendChild(divInfo);
-    li.appendChild(spanStatus);
+    li.appendChild(rightContainer);
     membersList.appendChild(li);
   });
+}
+
+function handleRemoveMember(memberId, memberName) {
+  showConfirm(
+    "Remover Membro",
+    `Tem certeza que deseja remover ${memberName} da equipe?`,
+    async () => {
+      try {
+        showLoading();
+        const res = await authFetch(`${API}/teams/${currentTeam}/members/${memberId}`, {
+          method: "DELETE"
+        });
+
+        const data = await res.json();
+
+        if (res.ok) {
+          showToast("Membro removido com sucesso!", "success");
+          loadMembers(); // Recarrega a lista
+        } else {
+          showToast(data.error || "Erro ao remover membro", "error");
+        }
+      } catch (err) {
+        showToast("Erro de conexão", "error");
+      } finally {
+        hideLoading();
+      }
+    }
+  );
 }
 
 async function handleAddMember(e) {

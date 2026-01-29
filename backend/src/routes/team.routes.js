@@ -129,6 +129,57 @@ router.post("/:id/members", auth, async (req, res) => {
   }
 });
 
+// --- REMOVER MEMBRO ---
+router.delete("/:teamId/members/:memberId", auth, async (req, res) => {
+  const { teamId, memberId } = req.params;
+  const userId = req.user.id;
+
+  try {
+    // 1. Verificar se a equipe existe e se o usuário logado é o líder
+    const teamRes = await pool.query("SELECT leader_id FROM teams WHERE id = $1", [teamId]);
+
+    if (teamRes.rowCount === 0) {
+      return res.status(404).json({ error: "Equipe não encontrada" });
+    }
+
+    if (teamRes.rows[0].leader_id !== userId) {
+      return res.status(403).json({ error: "Apenas o líder pode remover membros" });
+    }
+
+    // 2. Verificar se o membro a ser removido é o próprio líder
+    if (memberId === userId) {
+      return res.status(400).json({ error: "O líder não pode se remover da equipe" });
+    }
+
+    // 3. Verificar se o membro já pagou
+    const memberCheck = await pool.query(
+      "SELECT is_paid FROM team_members WHERE team_id = $1 AND user_id = $2",
+      [teamId, memberId]
+    );
+
+    if (memberCheck.rowCount === 0) {
+      return res.status(404).json({ error: "Membro não encontrado na equipe" });
+    }
+
+    if (memberCheck.rows[0].is_paid) {
+      return res.status(400).json({ error: "Não é possível remover membros que já pagaram a inscrição" });
+    }
+
+    // 4. Remover o membro
+    await pool.query(
+      "DELETE FROM team_members WHERE team_id = $1 AND user_id = $2",
+      [teamId, memberId]
+    );
+
+    console.log(`[Team] Membro ${memberId} removido da equipe ${teamId} pelo líder ${userId}`);
+    res.json({ message: "Membro removido com sucesso!" });
+
+  } catch (err) {
+    console.error("ERRO REMOVER MEMBRO:", err);
+    res.status(500).json({ error: "Erro ao remover membro" });
+  }
+});
+
 // --- LISTAR MEMBROS ---
 router.get("/:id/members", auth, async (req, res) => {
   const teamId = req.params.id;
