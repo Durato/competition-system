@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Dashboard - Technovação</title>
   <!-- CSP: Segurança reforçada para o painel administrativo -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: http: https:; script-src 'self' 'unsafe-inline' https://sdk.mercadopago.com; style-src 'self' 'unsafe-inline'; connect-src 'self' http: https: https://api.mercadopago.com; frame-src https://www.mercadopago.com;">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: http: https:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://sdk.mercadopago.com https://*.mlstatic.com; style-src 'self' 'unsafe-inline'; connect-src 'self' http: https: https://api.mercadopago.com https://*.mercadopago.com; frame-src https://www.mercadopago.com https://*.mercadopago.com;">
   <link rel="stylesheet" href="styles.css"/>
   <!-- Mercado Pago SDK -->
   <script src="https://sdk.mercadopago.com/js/v2"></script>
@@ -171,7 +171,7 @@
 
 <script src="config.js?v=3"></script>
 <script src="validators.js?v=3"></script>
-<script src="app.js?v=6"></script>
-<script src="payment.js?v=6"></script>
+<script src="app.js?v=7"></script>
+<script src="payment.js?v=7"></script>
 </body>
 </html>
