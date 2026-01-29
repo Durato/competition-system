@@ -189,7 +189,7 @@ router.get("/even3/health", (req, res) => {
   });
 });
 
-// Endpoint para consultar logs de webhooks recebidos
+// Endpoint para consultar logs de webhooks recebidos (requer auth)
 router.get("/even3/logs", auth, async (req, res) => {
   try {
     const result = await pool.query(
@@ -203,6 +203,30 @@ router.get("/even3/logs", auth, async (req, res) => {
   } catch (err) {
     res.status(500).json({
       error: "Tabela webhook_logs não existe. Execute a migração: backend/migrations/001_add_pending_payments.sql"
+    });
+  }
+});
+
+// Endpoint de diagnóstico temporário (sem auth, com chave simples)
+router.get("/even3/debug", async (req, res) => {
+  const key = req.query.key;
+  if (key !== "techno26debug") {
+    return res.status(403).json({ error: "Chave inválida. Use ?key=techno26debug" });
+  }
+
+  try {
+    const logs = await pool.query(
+      `SELECT id, action, payload, received_at
+       FROM webhook_logs
+       WHERE source = 'even3'
+       ORDER BY received_at DESC
+       LIMIT 20`
+    );
+    res.json({ count: logs.rowCount, logs: logs.rows });
+  } catch (err) {
+    res.status(500).json({
+      error: "Tabela webhook_logs não existe",
+      message: err.message
     });
   }
 });
