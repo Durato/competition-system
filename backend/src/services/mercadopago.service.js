@@ -53,7 +53,6 @@ export async function createPaymentPreference(data) {
         payment_methods: {
           installments: 1 // Apenas à vista
         },
-        purpose: 'wallet_purchase', // Força escolha de método de pagamento
         back_urls: {
           success: `${process.env.FRONTEND_URL}/app.html?payment=success`,
           failure: `${process.env.FRONTEND_URL}/app.html?payment=failure`,
