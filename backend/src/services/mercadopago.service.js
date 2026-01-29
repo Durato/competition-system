@@ -51,11 +51,9 @@ export async function createPaymentPreference(data) {
           name: payer.name
         } : undefined,
         payment_methods: {
-          excluded_payment_types: [
-            { id: 'account_money' } // Bloqueia pagamento com saldo do Mercado Pago
-          ],
           installments: 1 // Apenas à vista
         },
+        purpose: 'wallet_purchase', // Força escolha de método de pagamento
         back_urls: {
           success: `${process.env.FRONTEND_URL}/app.html?payment=success`,
           failure: `${process.env.FRONTEND_URL}/app.html?payment=failure`,
