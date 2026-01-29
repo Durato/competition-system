@@ -46,10 +46,6 @@ export async function createPaymentPreference(data) {
           unit_price: item.unit_price,
           currency_id: 'BRL'
         })),
-        payer: payer ? {
-          email: payer.email,
-          name: payer.name
-        } : undefined,
         payment_methods: {
           installments: 1 // Apenas à vista
         },
