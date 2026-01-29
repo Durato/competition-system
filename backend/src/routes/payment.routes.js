@@ -313,38 +313,21 @@ router.post("/process", auth, leader, async (req, res) => {
     });
 
     // --- SALVAR PENDING PAYMENT ---
+    // IMPORTANTE: Sempre salva como 'pending' - só marca como pago via webhook
     try {
       await pool.query(
         `INSERT INTO pending_payments
          (user_id, team_id, user_email, member_ids, robot_ids, total_amount, status, mp_payment_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-        [userId, teamId, userEmail, memberIds || [], robotIds || [], totalAmount,
-         payment.status === 'approved' ? 'completed' : 'pending', payment.id.toString()]
+         VALUES ($1, $2, $3, $4, $5, $6, 'pending', $7)`,
+        [userId, teamId, userEmail, memberIds || [], robotIds || [], totalAmount, payment.id.toString()]
       );
       console.log("[Payment Process] Pending payment salvo com ID:", payment.id);
     } catch (pendingErr) {
       console.error("[Payment Process] Erro ao salvar pending_payment:", pendingErr.message);
     }
 
-    // Se o pagamento já foi aprovado (improvável, mas possível), processar imediatamente
-    if (payment.status === 'approved') {
-      console.log("[Payment Process] Pagamento aprovado imediatamente");
-
-      // Atualizar membros e robôs como pagos
-      if (memberIds && memberIds.length > 0) {
-        await pool.query(
-          `UPDATE team_members SET is_paid = true WHERE user_id = ANY($1::uuid[]) AND is_paid = false`,
-          [memberIds]
-        );
-      }
-
-      if (robotIds && robotIds.length > 0) {
-        await pool.query(
-          `UPDATE robots SET is_paid = true WHERE id = ANY($1::uuid[]) AND is_paid = false`,
-          [robotIds]
-        );
-      }
-    }
+    // NOTA: NÃO marca como pago aqui. A confirmação SEMPRE vem via webhook
+    // para garantir que o pagamento foi realmente aprovado pelo Mercado Pago
 
     // --- RETORNAR RESPOSTA ---
     res.json({
