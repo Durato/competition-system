@@ -45,6 +45,27 @@ router.post("/checkout", auth, leader, async (req, res) => {
     const userRes = await pool.query("SELECT email FROM users WHERE id = $1", [userId]);
     const userEmail = userRes.rows[0].email;
 
+    // --- VALIDAR PERTENCIMENTO À EQUIPE ---
+    if (memberIds && memberIds.length > 0) {
+      const memberCheck = await pool.query(
+        "SELECT user_id FROM team_members WHERE team_id = $1 AND user_id = ANY($2::uuid[])",
+        [teamId, memberIds]
+      );
+      if (memberCheck.rowCount !== memberIds.length) {
+        return res.status(400).json({ error: "Alguns membros não pertencem a esta equipe." });
+      }
+    }
+
+    if (robotIds && robotIds.length > 0) {
+      const robotCheck = await pool.query(
+        "SELECT id FROM robots WHERE team_id = $1 AND id = ANY($2::uuid[])",
+        [teamId, robotIds]
+      );
+      if (robotCheck.rowCount !== robotIds.length) {
+        return res.status(400).json({ error: "Alguns robôs não pertencem a esta equipe." });
+      }
+    }
+
     // --- COLETAR DADOS DOS ITENS ---
     const items = [];
     let totalAmount = 0;
@@ -92,8 +113,8 @@ router.post("/checkout", auth, leader, async (req, res) => {
          JOIN categories c ON r.category_id = c.id
          JOIN teams t ON r.team_id = t.id
          JOIN users u ON t.leader_id = u.id
-         WHERE r.id = ANY($1::uuid[])`,
-        [robotIds]
+         WHERE r.id = ANY($1::uuid[]) AND r.team_id = $2`,
+        [robotIds, teamId]
       );
 
       for (const robot of robots.rows) {
