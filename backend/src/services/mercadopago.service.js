@@ -50,6 +50,12 @@ export async function createPaymentPreference(data) {
           email: payer.email,
           name: payer.name
         } : undefined,
+        payment_methods: {
+          excluded_payment_types: [
+            { id: 'account_money' } // Bloqueia pagamento com saldo do Mercado Pago
+          ],
+          installments: 1 // Apenas à vista
+        },
         back_urls: {
           success: `${process.env.FRONTEND_URL}/app.html?payment=success`,
           failure: `${process.env.FRONTEND_URL}/app.html?payment=failure`,
