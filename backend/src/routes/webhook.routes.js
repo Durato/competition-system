@@ -2,6 +2,7 @@ import { Router } from "express";
 import pool from "../db/pool.js";
 import { auth } from "../middleware/auth.js";
 import * as mercadopagoService from "../services/mercadopago.service.js";
+import crypto from "crypto";
 
 const router = Router();
 
@@ -20,6 +21,74 @@ async function saveWebhookLog(source, action, payload, headers) {
   }
 }
 
+/**
+ * Valida a assinatura do webhook do Mercado Pago
+ * Documentação: https://www.mercadopago.com.br/developers/pt/docs/your-integrations/notifications/webhooks
+ */
+function validateMercadoPagoSignature(req) {
+  const secret = process.env.MERCADOPAGO_WEBHOOK_SECRET;
+
+  // Se não há secret configurada, aceita (para desenvolvimento)
+  if (!secret) {
+    console.log("[Webhook MP] AVISO: Webhook secret não configurada - aceitando sem validação");
+    return true;
+  }
+
+  const xSignature = req.headers['x-signature'];
+  const xRequestId = req.headers['x-request-id'];
+
+  if (!xSignature || !xRequestId) {
+    console.log("[Webhook MP] Headers de assinatura não encontrados");
+    return false;
+  }
+
+  try {
+    // Extrai timestamp e hash do header x-signature
+    // Formato: "ts=1234567890,v1=abcdef..."
+    const parts = xSignature.split(',');
+    let ts, hash;
+
+    parts.forEach(part => {
+      const [key, value] = part.split('=');
+      if (key === 'ts') ts = value;
+      if (key === 'v1') hash = value;
+    });
+
+    if (!ts || !hash) {
+      console.log("[Webhook MP] Formato de assinatura inválido");
+      return false;
+    }
+
+    // Monta a string para validação: id + request-id + timestamp
+    const dataId = req.query.id || req.query['data.id'] || '';
+    const manifest = `id:${dataId};request-id:${xRequestId};ts:${ts};`;
+
+    // Calcula o hash HMAC-SHA256
+    const hmac = crypto.createHmac('sha256', secret);
+    hmac.update(manifest);
+    const calculatedHash = hmac.digest('hex');
+
+    // Compara os hashes
+    const isValid = calculatedHash === hash;
+
+    if (!isValid) {
+      console.log("[Webhook MP] Assinatura inválida!", {
+        expected: hash,
+        calculated: calculatedHash,
+        manifest
+      });
+    } else {
+      console.log("[Webhook MP] Assinatura válida!");
+    }
+
+    return isValid;
+
+  } catch (err) {
+    console.error("[Webhook MP] Erro ao validar assinatura:", err);
+    return false;
+  }
+}
+
 // Webhook do Mercado Pago - Recebe notificações de pagamento
 router.post("/mercadopago", async (req, res) => {
   console.log("=== WEBHOOK MERCADO PAGO RECEBIDO ===");
@@ -31,6 +100,12 @@ router.post("/mercadopago", async (req, res) => {
 
   // Salvar no banco antes de qualquer processamento
   await saveWebhookLog('mercadopago', req.body?.type || req.query?.topic || 'unknown', req.body, req.headers);
+
+  // Validar assinatura do webhook
+  if (!validateMercadoPagoSignature(req)) {
+    console.error("[Webhook MP] Assinatura inválida - requisição rejeitada");
+    return res.status(401).send("Unauthorized");
+  }
 
   try {
     // Mercado Pago envia notificações em diferentes formatos
