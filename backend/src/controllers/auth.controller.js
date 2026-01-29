@@ -1,6 +1,8 @@
 import pool from "../db/pool.js";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
+import crypto from "crypto";
+import { sendPasswordResetEmail } from "../config/mailer.js";
 
 export async function register(req, res) {
   const { name, email, password, birthdate, phone } = req.body;
@@ -75,5 +77,107 @@ export async function login(req, res) {
   } catch (err) {
     console.error("ERRO LOGIN:", err);
     res.status(500).json({ error: "Erro no login" });
+  }
+}
+
+export async function forgotPassword(req, res) {
+  const { email } = req.body;
+
+  if (!email) {
+    return res.status(400).json({ error: "Informe o email" });
+  }
+
+  try {
+    // Verifica se o usuário existe
+    const result = await pool.query(
+      "SELECT id, email FROM users WHERE email = $1",
+      [email]
+    );
+
+    if (result.rowCount === 0) {
+      // Por segurança, não revela se o email existe ou não
+      return res.json({ message: "Se o email existir, um link de recuperação será enviado." });
+    }
+
+    const user = result.rows[0];
+
+    // Gera token aleatório
+    const resetToken = crypto.randomBytes(32).toString("hex");
+    const expiresAt = new Date(Date.now() + 3600000); // 1 hora
+
+    // Salva o token no banco
+    await pool.query(
+      "INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES ($1, $2, $3)",
+      [user.id, resetToken, expiresAt]
+    );
+
+    // Envia email
+    const emailSent = await sendPasswordResetEmail(user.email, resetToken);
+
+    if (!emailSent) {
+      return res.status(500).json({ error: "Erro ao enviar email. Tente novamente mais tarde." });
+    }
+
+    res.json({ message: "Se o email existir, um link de recuperação será enviado." });
+  } catch (err) {
+    console.error("ERRO FORGOT PASSWORD:", err);
+    res.status(500).json({ error: "Erro ao processar solicitação" });
+  }
+}
+
+export async function resetPassword(req, res) {
+  const { token, newPassword } = req.body;
+
+  if (!token || !newPassword) {
+    return res.status(400).json({ error: "Token e nova senha são obrigatórios" });
+  }
+
+  // Valida força da senha
+  if (newPassword.length < 8 || !/[a-zA-Z]/.test(newPassword) || !/[0-9]/.test(newPassword)) {
+    return res.status(400).json({ error: "Senha fraca: Mínimo 8 caracteres, com letras e números." });
+  }
+
+  try {
+    // Busca o token válido
+    const tokenResult = await pool.query(
+      "SELECT user_id, expires_at, used FROM password_reset_tokens WHERE token = $1",
+      [token]
+    );
+
+    if (tokenResult.rowCount === 0) {
+      return res.status(400).json({ error: "Token inválido" });
+    }
+
+    const tokenData = tokenResult.rows[0];
+
+    // Verifica se já foi usado
+    if (tokenData.used) {
+      return res.status(400).json({ error: "Token já utilizado" });
+    }
+
+    // Verifica se expirou
+    if (new Date() > new Date(tokenData.expires_at)) {
+      return res.status(400).json({ error: "Token expirado" });
+    }
+
+    // Hash da nova senha
+    const hash = await bcrypt.hash(newPassword, 10);
+
+    // Atualiza a senha do usuário
+    await pool.query(
+      "UPDATE users SET password_hash = $1 WHERE id = $2",
+      [hash, tokenData.user_id]
+    );
+
+    // Marca o token como usado
+    await pool.query(
+      "UPDATE password_reset_tokens SET used = true WHERE token = $1",
+      [token]
+    );
+
+    res.json({ message: "Senha redefinida com sucesso!" });
+  } catch (err) {
+    console.error("ERRO RESET PASSWORD:", err);
+    res.status(500).json({ error: "Erro ao redefinir senha" });
   }
 }

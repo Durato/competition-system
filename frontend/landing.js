@@ -78,6 +78,7 @@ async function handleRegister(e) {
   const name = document.getElementById("registerName").value;
   const email = document.getElementById("registerEmail").value;
   const password = document.getElementById("registerPassword").value;
+  const confirmPassword = document.getElementById("registerConfirmPassword").value;
   const birthdate = document.getElementById("registerBirthdate").value;
   const phone = document.getElementById("registerPhone").value;
   const photoInput = document.getElementById("registerPhoto");
@@ -94,6 +95,15 @@ async function handleRegister(e) {
   // Exige senha forte (8 chars, letras e números)
   if (!Validators.password(password)) {
     document.getElementById("registerMessage").innerText = "Senha fraca: Mínimo 8 caracteres, com letras e números.";
+    document.getElementById("registerMessage").style.color = "#f87171";
+    btn.disabled = false;
+    btn.innerText = originalText;
+    return;
+  }
+
+  // Validação de confirmação de senha
+  if (password !== confirmPassword) {
+    document.getElementById("registerMessage").innerText = "As senhas não correspondem.";
     document.getElementById("registerMessage").style.color = "#f87171";
     btn.disabled = false;
     btn.innerText = originalText;
@@ -139,6 +149,53 @@ async function handleRegister(e) {
     showToast("Erro de conexão", "error");
   } finally {
     // Restaura o botão
+    btn.disabled = false;
+    btn.innerText = originalText;
+  }
+}
+
+// ---------------- FORGOT PASSWORD ----------------
+async function handleForgotPassword(e) {
+  e.preventDefault();
+
+  const email = document.getElementById("forgotPasswordEmail").value;
+  const btn = e.target.querySelector('button');
+  const originalText = btn.innerText;
+
+  btn.disabled = true;
+  btn.innerText = "Enviando...";
+
+  try {
+    const res = await fetch(API + "/auth/forgot-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email })
+    });
+
+    const data = await res.json();
+
+    if (res.ok) {
+      document.getElementById("forgotPasswordMessage").innerText = "Se o email estiver cadastrado, você receberá um link de recuperação.";
+      document.getElementById("forgotPasswordMessage").style.color = "#22c55e";
+      showToast("Email de recuperação enviado!", "success");
+
+      // Limpa o formulário
+      document.getElementById("forgotPasswordEmail").value = "";
+
+      // Fecha o modal após 3 segundos
+      setTimeout(() => {
+        closeModal("forgotPassword");
+        document.getElementById("forgotPasswordMessage").innerText = "";
+      }, 3000);
+    } else {
+      document.getElementById("forgotPasswordMessage").innerText = data.error || "Erro ao enviar email";
+      document.getElementById("forgotPasswordMessage").style.color = "#f87171";
+    }
+  } catch (error) {
+    document.getElementById("forgotPasswordMessage").innerText = "Erro de conexão com o servidor";
+    document.getElementById("forgotPasswordMessage").style.color = "#f87171";
+    showToast("Erro de conexão", "error");
+  } finally {
     btn.disabled = false;
     btn.innerText = originalText;
   }

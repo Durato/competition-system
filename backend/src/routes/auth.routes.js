@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { register, login } from "../controllers/auth.controller.js";
+import { register, login, forgotPassword, resetPassword } from "../controllers/auth.controller.js";
 import multer from "multer";
 import DatauriParser from "datauri/parser.js";
 import path from "path";
@@ -36,5 +36,7 @@ router.post("/register", upload.single("photo"), async (req, res) => {
 });
 
 router.post("/login", login);
+router.post("/forgot-password", forgotPassword);
+router.post("/reset-password", resetPassword);
 
 export default router;

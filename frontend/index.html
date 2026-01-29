@@ -63,7 +63,22 @@
       <input type="password" id="loginPassword" placeholder="Senha" required />
       <button style="width: 100%">Entrar</button>
     </form>
+    <a href="#" onclick="closeModal('login'); openModal('forgotPassword'); return false;" style="display: block; text-align: center; margin-top: 10px; color: var(--primary); text-decoration: none; font-size: 0.9rem;">Esqueceu a senha?</a>
     <button onclick="closeModal('login')" style="margin-top: 15px; width: 100%; background: transparent; border: 1px solid var(--border); color: var(--text);">Fechar</button>
+  </div>
+</div>
+
+<!-- FORGOT PASSWORD MODAL -->
+<div class="modal" id="forgotPasswordModal">
+  <div class="modal-box">
+    <h2>Recuperar Senha</h2>
+    <p style="color: #aaa; font-size: 0.9rem; margin-bottom: 15px;">Digite seu email para receber um link de recuperação de senha.</p>
+    <div id="forgotPasswordMessage"></div>
+    <form onsubmit="handleForgotPassword(event)">
+      <input type="email" id="forgotPasswordEmail" placeholder="Seu email" required />
+      <button type="submit" style="width: 100%">Enviar Link</button>
+    </form>
+    <button onclick="closeModal('forgotPassword')" style="margin-top: 15px; width: 100%; background: transparent; border: 1px solid var(--border); color: var(--text);">Fechar</button>
   </div>
 </div>
 
@@ -76,8 +91,10 @@
       <input type="text" id="registerName" placeholder="Nome completo" required />
       <input type="email" id="registerEmail" placeholder="Seu email" required />
       <input type="password" id="registerPassword" placeholder="Sua senha" required />
+      <input type="password" id="registerConfirmPassword" placeholder="Confirme sua senha" required />
       <input type="date" id="registerBirthdate" required style="color-scheme: dark;" />
       <input type="tel" id="registerPhone" placeholder="Telefone / WhatsApp" required />
+      <label for="registerPhoto" style="display: block; margin-top: 10px; margin-bottom: 5px; color: var(--text); font-size: 0.9rem;">Foto do perfil</label>
       <input type="file" id="registerPhoto" accept="image/*" style="background: var(--surface); color: var(--text);" required />
       <button type="submit">Cadastrar</button>
     </form>
