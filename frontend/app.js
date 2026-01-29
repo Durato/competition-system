@@ -5,6 +5,7 @@ if (!localStorage.getItem("token")) {
 
 const API = Config.API_URL;
 let currentTeam = null;
+let currentTeamIsLeader = false;
 
 // Funções utilitárias copiadas para cá. O ideal no futuro é ter um arquivo ui.js
 function openModal(type) {
@@ -146,6 +147,7 @@ async function handleCreateTeam(e) {
 
 function selectTeam(teamId, isLeader) {
   currentTeam = teamId;
+  currentTeamIsLeader = isLeader;
   document.getElementById("membersSection").style.display = "block";
   document.getElementById("teamRobotsSection").style.display = "block";
   document.getElementById("addMemberArea").style.display = isLeader ? "block" : "none";
@@ -195,7 +197,7 @@ async function loadMembers() {
     rightContainer.appendChild(spanStatus);
 
     // Botão de remover (apenas para membros não pagos e não líderes)
-    if (!m.is_paid && m.role !== 'leader' && isLeader) {
+    if (!m.is_paid && m.role !== 'leader' && currentTeamIsLeader) {
       const btnRemove = document.createElement("button");
       btnRemove.textContent = "Remover";
       btnRemove.style.cssText = "padding: 4px 8px; font-size: 0.8rem; background-color: #ef4444; border: none; cursor: pointer;";
