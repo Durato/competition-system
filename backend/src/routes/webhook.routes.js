@@ -179,6 +179,33 @@ async function processApprovedPayment(payment) {
         [memberIds]
       );
       console.log(`[Webhook MP] ${memberResult.rowCount} membros marcados como pagos`);
+
+      // Confirmar alojamento para membros que solicitaram e pagaram
+      // Verifica o limite de 200 vagas antes de confirmar
+      const accommodationCountRes = await pool.query(
+        "SELECT COUNT(*) FROM users WHERE accommodation_confirmed = true"
+      );
+      const currentConfirmed = parseInt(accommodationCountRes.rows[0].count);
+      const ACCOMMODATION_LIMIT = 200;
+
+      if (currentConfirmed < ACCOMMODATION_LIMIT) {
+        const slotsAvailable = ACCOMMODATION_LIMIT - currentConfirmed;
+        const accommodationResult = await pool.query(
+          `UPDATE users
+           SET accommodation_confirmed = true
+           WHERE id = ANY(
+             SELECT id FROM users
+             WHERE id = ANY($1::uuid[])
+             AND needs_accommodation = true
+             AND accommodation_confirmed = false
+             LIMIT $2
+           )`,
+          [memberIds, slotsAvailable]
+        );
+        console.log(`[Webhook MP] ${accommodationResult.rowCount} alojamentos confirmados (${slotsAvailable} vagas disponíveis)`);
+      } else {
+        console.log(`[Webhook MP] Limite de alojamento atingido (${currentConfirmed}/${ACCOMMODATION_LIMIT})`);
+      }
     } catch (err) {
       console.error("[Webhook MP] Erro ao atualizar membros:", err);
     }

@@ -65,16 +65,9 @@ router.put("/accommodation", auth, async (req, res) => {
   const { needs_accommodation } = req.body;
 
   try {
-    // Se quer ativar, verificar limite de 200 vagas
-    if (needs_accommodation) {
-      const countRes = await pool.query(
-        "SELECT COUNT(*) FROM users WHERE needs_accommodation = true AND id != $1",
-        [req.user.id]
-      );
-      if (parseInt(countRes.rows[0].count) >= 200) {
-        return res.status(400).json({ error: "Limite de 200 vagas de alojamento atingido." });
-      }
-    }
+    // Nota: Permite solicitar alojamento livremente
+    // O limite de 200 vagas é aplicado apenas aos confirmados (após pagamento)
+    // Isso é verificado no webhook ao processar o pagamento
 
     await pool.query(
       "UPDATE users SET needs_accommodation = $1 WHERE id = $2",
@@ -89,10 +82,11 @@ router.put("/accommodation", auth, async (req, res) => {
 });
 
 // Contagem pública de vagas de alojamento
+// IMPORTANTE: Conta apenas alojamentos CONFIRMADOS (após pagamento)
 router.get("/accommodation/count", async (req, res) => {
   try {
     const countRes = await pool.query(
-      "SELECT COUNT(*) FROM users WHERE needs_accommodation = true"
+      "SELECT COUNT(*) FROM users WHERE accommodation_confirmed = true"
     );
     const count = parseInt(countRes.rows[0].count);
     res.json({ count, limit: 200, remaining: Math.max(0, 200 - count) });
