@@ -16,6 +16,13 @@ const transporter = nodemailer.createTransport({
 export async function sendPasswordResetEmail(email, resetToken) {
   const resetUrl = `${process.env.FRONTEND_URL}/reset-password.html?token=${resetToken}`;
 
+  console.log("[Mailer] Configuração de email:");
+  console.log("  - HOST:", process.env.EMAIL_HOST);
+  console.log("  - PORT:", process.env.EMAIL_PORT);
+  console.log("  - USER:", process.env.EMAIL_USER);
+  console.log("  - FROM:", process.env.EMAIL_FROM);
+  console.log("  - Reset URL:", resetUrl);
+
   const mailOptions = {
     from: process.env.EMAIL_FROM,
     to: email,
@@ -35,10 +42,14 @@ export async function sendPasswordResetEmail(email, resetToken) {
   };
 
   try {
-    await transporter.sendMail(mailOptions);
+    console.log("[Mailer] Enviando email para:", email);
+    const info = await transporter.sendMail(mailOptions);
+    console.log("[Mailer] Email enviado com sucesso! ID:", info.messageId);
     return true;
   } catch (error) {
-    console.error("Erro ao enviar email:", error);
+    console.error("[Mailer] ERRO ao enviar email:", error);
+    console.error("[Mailer] Código do erro:", error.code);
+    console.error("[Mailer] Mensagem:", error.message);
     return false;
   }
 }

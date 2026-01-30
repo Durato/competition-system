@@ -103,44 +103,56 @@ export async function login(req, res) {
 export async function forgotPassword(req, res) {
   const { email } = req.body;
 
+  console.log("[ForgotPassword] Requisição recebida para email:", email);
+
   if (!email) {
     return res.status(400).json({ error: "Informe o email" });
   }
 
   try {
     // Verifica se o usuário existe
+    console.log("[ForgotPassword] Buscando usuário no banco...");
     const result = await pool.query(
       "SELECT id, email FROM users WHERE email = $1",
       [email]
     );
 
     if (result.rowCount === 0) {
+      console.log("[ForgotPassword] Email não encontrado no banco");
       // Por segurança, não revela se o email existe ou não
       return res.json({ message: "Se o email existir, um link de recuperação será enviado." });
     }
 
     const user = result.rows[0];
+    console.log("[ForgotPassword] Usuário encontrado:", user.id);
 
     // Gera token aleatório
     const resetToken = crypto.randomBytes(32).toString("hex");
     const expiresAt = new Date(Date.now() + 3600000); // 1 hora
+    console.log("[ForgotPassword] Token gerado, expira em:", expiresAt);
 
     // Salva o token no banco
+    console.log("[ForgotPassword] Salvando token no banco...");
     await pool.query(
       "INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES ($1, $2, $3)",
       [user.id, resetToken, expiresAt]
     );
+    console.log("[ForgotPassword] Token salvo com sucesso");
 
     // Envia email
+    console.log("[ForgotPassword] Tentando enviar email para:", user.email);
     const emailSent = await sendPasswordResetEmail(user.email, resetToken);
 
     if (!emailSent) {
+      console.error("[ForgotPassword] Falha ao enviar email");
       return res.status(500).json({ error: "Erro ao enviar email. Tente novamente mais tarde." });
     }
 
+    console.log("[ForgotPassword] Email enviado com sucesso!");
     res.json({ message: "Se o email existir, um link de recuperação será enviado." });
   } catch (err) {
-    console.error("ERRO FORGOT PASSWORD:", err);
+    console.error("[ForgotPassword] ERRO:", err);
+    console.error("[ForgotPassword] Stack trace:", err.stack);
     res.status(500).json({ error: "Erro ao processar solicitação" });
   }
 }
