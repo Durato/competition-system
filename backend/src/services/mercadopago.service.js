@@ -1,11 +1,12 @@
 import { MercadoPagoConfig, Preference, Payment } from 'mercadopago';
+import { randomUUID } from 'crypto';
 
 // Inicializa o cliente do Mercado Pago
+// IMPORTANTE: Não definir idempotencyKey aqui - será gerado por requisição
 const client = new MercadoPagoConfig({
   accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN,
   options: {
-    timeout: 5000,
-    idempotencyKey: 'abc'
+    timeout: 5000
   }
 });
 
@@ -159,11 +160,15 @@ export async function createDirectPayment(data) {
     throw new Error('Token do cartão é obrigatório para pagamento com cartão');
   }
 
+  // Gera um idempotency key único para este pagamento
+  const idempotencyKey = randomUUID();
+
   console.log('[MercadoPago] Criando pagamento direto:', {
     payment_method_id,
     transaction_amount,
     payer_email: payer.email,
-    metadata
+    metadata,
+    idempotencyKey
   });
 
   try {
@@ -190,8 +195,12 @@ export async function createDirectPayment(data) {
       }
     }
 
+    // Passa o idempotency key único como requestOptions
     const payment = await paymentClient.create({
-      body: paymentData
+      body: paymentData,
+      requestOptions: {
+        idempotencyKey: idempotencyKey
+      }
     });
 
     console.log('[MercadoPago] Pagamento criado com sucesso:', {
