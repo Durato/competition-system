@@ -45,7 +45,7 @@ router.post("/reset-password", resetPassword);
 router.get("/me", auth, async (req, res) => {
   try {
     const user = await pool.query(
-      "SELECT id, name, email, photo FROM users WHERE id = $1",
+      "SELECT id, name, email, photo, cpf, needs_accommodation FROM users WHERE id = $1",
       [req.user.id]
     );
 
@@ -57,6 +57,48 @@ router.get("/me", auth, async (req, res) => {
   } catch (err) {
     console.error("Erro ao buscar usuário:", err);
     res.status(500).json({ error: "Erro ao buscar dados do usuário" });
+  }
+});
+
+// Atualizar opção de alojamento do usuário
+router.put("/accommodation", auth, async (req, res) => {
+  const { needs_accommodation } = req.body;
+
+  try {
+    // Se quer ativar, verificar limite de 200 vagas
+    if (needs_accommodation) {
+      const countRes = await pool.query(
+        "SELECT COUNT(*) FROM users WHERE needs_accommodation = true AND id != $1",
+        [req.user.id]
+      );
+      if (parseInt(countRes.rows[0].count) >= 200) {
+        return res.status(400).json({ error: "Limite de 200 vagas de alojamento atingido." });
+      }
+    }
+
+    await pool.query(
+      "UPDATE users SET needs_accommodation = $1 WHERE id = $2",
+      [!!needs_accommodation, req.user.id]
+    );
+
+    res.json({ message: "Opção de alojamento atualizada.", needs_accommodation: !!needs_accommodation });
+  } catch (err) {
+    console.error("Erro ao atualizar alojamento:", err);
+    res.status(500).json({ error: "Erro ao atualizar opção de alojamento" });
+  }
+});
+
+// Contagem pública de vagas de alojamento
+router.get("/accommodation/count", async (req, res) => {
+  try {
+    const countRes = await pool.query(
+      "SELECT COUNT(*) FROM users WHERE needs_accommodation = true"
+    );
+    const count = parseInt(countRes.rows[0].count);
+    res.json({ count, limit: 200, remaining: Math.max(0, 200 - count) });
+  } catch (err) {
+    console.error("Erro ao buscar contagem de alojamento:", err);
+    res.status(500).json({ error: "Erro ao buscar contagem" });
   }
 });
 

@@ -533,21 +533,77 @@ async function handleCheckout() {
   }
 }
 
+// --- ALOJAMENTO ---
+async function loadAccommodation(userData) {
+  try {
+    // Usar dados do usuario ja carregados para evitar chamada duplicada ao /auth/me
+    if (userData) {
+      document.getElementById("accommodationToggle").checked = !!userData.needs_accommodation;
+    }
+
+    const countRes = await fetch(API + "/auth/accommodation/count");
+    if (countRes.ok) {
+      const data = await countRes.json();
+      document.getElementById("accommodationRemaining").innerText = data.remaining;
+    }
+  } catch (err) {
+    console.error("Erro ao carregar alojamento:", err);
+  }
+}
+
+async function toggleAccommodation() {
+  const checkbox = document.getElementById("accommodationToggle");
+  const messageEl = document.getElementById("accommodationMessage");
+
+  try {
+    const res = await authFetch(API + "/auth/accommodation", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ needs_accommodation: checkbox.checked })
+    });
+
+    const data = await res.json();
+
+    if (res.ok) {
+      messageEl.innerText = checkbox.checked ? "Alojamento solicitado!" : "Alojamento cancelado.";
+      messageEl.style.color = "#4ade80";
+      showToast(messageEl.innerText, "success");
+      // Atualizar contador
+      const countRes = await fetch(API + "/auth/accommodation/count");
+      if (countRes.ok) {
+        const countData = await countRes.json();
+        document.getElementById("accommodationRemaining").innerText = countData.remaining;
+      }
+    } else {
+      checkbox.checked = !checkbox.checked; // Reverter
+      messageEl.innerText = data.error || "Erro ao atualizar alojamento";
+      messageEl.style.color = "#f87171";
+      showToast(data.error || "Erro ao atualizar alojamento", "error");
+    }
+  } catch (err) {
+    checkbox.checked = !checkbox.checked; // Reverter
+    messageEl.innerText = "Erro de conexão";
+    messageEl.style.color = "#f87171";
+  }
+
+  setTimeout(() => { messageEl.innerText = ""; }, 3000);
+}
+
 window.onload = async () => {
   toggleLoader(true);
   try {
-    // Pega o nome do usuário do token (exemplo, você precisaria decodificar o token)
-    // Por simplicidade, vamos buscar o usuário na API
+    let userData = null;
     const userRes = await authFetch(API + "/auth/me");
     if (userRes.ok) {
-        const user = await userRes.json();
-        document.getElementById("userName").innerText = user.name;
+        userData = await userRes.json();
+        document.getElementById("userName").innerText = userData.name;
     }
 
     const promises = [
       loadTeams(),
       loadCategories(),
-      loadCategoriesAndRobots()
+      loadCategoriesAndRobots(),
+      loadAccommodation(userData)
     ];
     await Promise.all(promises);
   } finally {
