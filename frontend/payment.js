@@ -32,6 +32,12 @@ function openPaymentModal(paymentData) {
   currentPaymentData = paymentData;
   currentPixPaymentId = null; // Reset PIX payment
 
+  // Limpar QR code anterior para evitar flash do QR antigo
+  document.getElementById('pixQRCode').src = '';
+  document.getElementById('pixCode').value = '';
+  document.getElementById('pixResult').style.display = 'none';
+  document.getElementById('pixLoading').style.display = 'block';
+
   // Update total display
   const totalDisplay = document.getElementById('paymentTotalDisplay');
   totalDisplay.textContent = `Total: R$ ${paymentData.total.toFixed(2).replace('.', ',')}`;
@@ -67,7 +73,9 @@ function closePaymentModal() {
   currentPaymentData = null;
   currentPixPaymentId = null;
 
-  // Reset PIX content
+  // Reset PIX content - limpar dados do QR code anterior
+  document.getElementById('pixQRCode').src = '';
+  document.getElementById('pixCode').value = '';
   document.getElementById('pixResult').style.display = 'none';
   document.getElementById('pixLoading').style.display = 'block';
 }
@@ -106,6 +114,9 @@ async function processPIXPayment() {
   const pixLoading = document.getElementById('pixLoading');
   const pixResult = document.getElementById('pixResult');
 
+  // Limpar QR code anterior antes de gerar novo
+  document.getElementById('pixQRCode').src = '';
+  document.getElementById('pixCode').value = '';
   pixLoading.style.display = 'block';
   pixResult.style.display = 'none';
 
