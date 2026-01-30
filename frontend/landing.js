@@ -76,14 +76,24 @@ async function handleRegister(e) {
   btn.innerText = "Cadastrando...";
 
   const name = document.getElementById("registerName").value;
+  const cpf = document.getElementById("registerCPF").value;
   const email = document.getElementById("registerEmail").value;
   const password = document.getElementById("registerPassword").value;
   const confirmPassword = document.getElementById("registerConfirmPassword").value;
   const birthdate = document.getElementById("registerBirthdate").value;
   const phone = document.getElementById("registerPhone").value;
   const photoInput = document.getElementById("registerPhoto");
+  const needsAccommodation = document.getElementById("registerAccommodation").checked;
 
-  // --- VALIDAÇÃO ROBUSTA (Task 2.1) ---
+  // --- VALIDAÇÃO ---
+  if (!Validators.cpf(cpf)) {
+    document.getElementById("registerMessage").innerText = "CPF inválido.";
+    document.getElementById("registerMessage").style.color = "#f87171";
+    btn.disabled = false;
+    btn.innerText = originalText;
+    return;
+  }
+
   if (!Validators.email(email)) {
     document.getElementById("registerMessage").innerText = "Email inválido.";
     document.getElementById("registerMessage").style.color = "#f87171";
@@ -122,10 +132,12 @@ async function handleRegister(e) {
 
   const formData = new FormData();
   formData.append("name", name);
+  formData.append("cpf", cpf);
   formData.append("email", email);
   formData.append("password", password);
   formData.append("birthdate", birthdate);
   formData.append("phone", phone);
+  formData.append("needs_accommodation", needsAccommodation);
   if (photoInput.files[0]) formData.append("photo", photoInput.files[0]);
 
   try {

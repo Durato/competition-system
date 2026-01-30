@@ -5,10 +5,10 @@ import crypto from "crypto";
 import { sendPasswordResetEmail } from "../config/mailer.js";
 
 export async function register(req, res) {
-  const { name, email, password, birthdate, phone } = req.body;
+  const { name, email, password, birthdate, phone, cpf, needs_accommodation } = req.body;
   const photo = req.photoUrl || null;
 
-  if (!name || !email || !password || !birthdate || !phone) {
+  if (!name || !email || !password || !birthdate || !phone || !cpf) {
     return res.status(400).json({ error: "Preencha todos os campos" });
   }
 
@@ -22,11 +22,31 @@ export async function register(req, res) {
       return res.status(400).json({ error: "Email já cadastrado" });
     }
 
+    const cpfExists = await pool.query(
+      "SELECT id FROM users WHERE cpf = $1",
+      [cpf]
+    );
+
+    if (cpfExists.rowCount > 0) {
+      return res.status(400).json({ error: "CPF já cadastrado" });
+    }
+
+    // Verificar limite de alojamento (200 vagas)
+    const wantsAccommodation = needs_accommodation === 'true' || needs_accommodation === true;
+    if (wantsAccommodation) {
+      const accommodationCount = await pool.query(
+        "SELECT COUNT(*) FROM users WHERE needs_accommodation = true"
+      );
+      if (parseInt(accommodationCount.rows[0].count) >= 200) {
+        return res.status(400).json({ error: "Limite de 200 vagas de alojamento atingido." });
+      }
+    }
+
     const hash = await bcrypt.hash(password, 10);
 
     const result = await pool.query(
-      "INSERT INTO users (name, email, password_hash, birthdate, phone, photo) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, name, email",
-      [name, email, hash, birthdate, phone, photo]
+      "INSERT INTO users (name, email, password_hash, birthdate, phone, photo, cpf, needs_accommodation) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, name, email",
+      [name, email, hash, birthdate, phone, photo, cpf, wantsAccommodation]
     );
 
     res.status(201).json(result.rows[0]);

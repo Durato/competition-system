@@ -89,6 +89,7 @@
     <div id="registerMessage"></div>
     <form onsubmit="handleRegister(event)">
       <input type="text" id="registerName" placeholder="Nome completo" required />
+      <input type="text" id="registerCPF" placeholder="CPF" required oninput="this.value = Validators.formatCPF(this.value)" maxlength="14" />
       <input type="email" id="registerEmail" placeholder="Seu email" required />
       <input type="password" id="registerPassword" placeholder="Sua senha" required />
       <input type="password" id="registerConfirmPassword" placeholder="Confirme sua senha" required />
@@ -96,6 +97,10 @@
       <input type="tel" id="registerPhone" placeholder="Telefone / WhatsApp" required />
       <label for="registerPhoto" style="display: block; margin-top: 10px; margin-bottom: 5px; color: var(--text); font-size: 0.9rem;">Foto do perfil</label>
       <input type="file" id="registerPhoto" accept="image/*" style="background: var(--surface); color: var(--text);" required />
+      <label style="display: flex; align-items: center; gap: 10px; margin-top: 10px; color: var(--text); font-size: 0.9rem; cursor: pointer;">
+        <input type="checkbox" id="registerAccommodation" style="width: auto; margin: 0;" />
+        Preciso de alojamento <span style="color: #aaa; font-size: 0.8rem;">(200 vagas)</span>
+      </label>
       <button type="submit">Cadastrar</button>
     </form>
     <button onclick="closeModal('register')" style="background: transparent; color: #666; margin-top: 10px; width: 100%; border: none;">
